@@ -73,7 +73,7 @@ export async function GET() {
                   $and: [
                     { $eq: ['$categoryId', '$$categoryId'] },
                     { $eq: ['$isActive', true] },
-                    { $eq: ['$subcategoryId', null] }
+                    { $not: { $gt: ['$subcategoryId', null] } }
                   ]
                 }
               }
