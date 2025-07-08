@@ -8,6 +8,25 @@ import { useRouter } from "next/navigation"
 import { MenuItemEditor } from "@/components/admin/menu-item-editor"
 import { BeerEditor } from "@/components/admin/beer-editor"
 import { CategoryManager } from "@/components/admin/category-manager"
+import { Badge } from "@/components/ui/badge"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { 
+  Home, 
+  Menu, 
+  Settings, 
+  TrendingUp, 
+  Users, 
+  Coffee,
+  Plus,
+  Edit3,
+  Search,
+  Clock,
+  AlertCircle,
+  BarChart3,
+  Tag,
+  LogOut,
+  Eye
+} from "lucide-react"
 
 // Import menu data
 import {
@@ -35,10 +54,24 @@ const tabs = [
   { id: "settings", label: "Settings", emoji: "⚙️" },
 ]
 
+interface DashboardStats {
+  totalItems: number
+  activeItems: number
+  categories: number
+  lastUpdate: string
+}
+
 export default function AdminDashboard() {
   const router = useRouter()
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [activeTab, setActiveTab] = useState("overview")
+  const [stats, setStats] = useState<DashboardStats>({
+    totalItems: 0,
+    activeItems: 0,
+    categories: 0,
+    lastUpdate: ""
+  })
+  const [loading, setLoading] = useState(true)
 
   // Menu data states
   const [hamburgerClassici, setHamburgerClassici] = useState(initialHamburgerClassici)
@@ -162,6 +195,53 @@ export default function AdminDashboard() {
     caffetteria,
   ])
 
+  useEffect(() => {
+    // Load dashboard stats
+    loadDashboardData()
+  }, [])
+
+  const loadDashboardData = async () => {
+    try {
+      setLoading(true)
+      const response = await fetch("/api/menu")
+      const data = await response.json()
+      
+      if (data.success) {
+        // Count totals
+        let totalItems = 0
+        let categories = 0
+        
+        Object.values(data.data).forEach((category: any) => {
+          if (Array.isArray(category)) {
+            totalItems += category.length
+            categories += 1
+          } else if (category.subcategories) {
+            Object.values(category.subcategories).forEach((subcategory: any) => {
+              if (Array.isArray(subcategory)) {
+                totalItems += subcategory.length
+              }
+            })
+            if (category.items?.length) {
+              totalItems += category.items.length
+            }
+            categories += 1
+          }
+        })
+
+        setStats({
+          totalItems,
+          activeItems: totalItems, // Per ora tutti sono attivi
+          categories,
+          lastUpdate: new Date().toLocaleDateString('it-IT')
+        })
+      }
+    } catch (error) {
+      console.error("Error loading dashboard data:", error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
   if (!isAuthenticated) {
     return (
       <div className="min-h-screen bg-white flex items-center justify-center">
@@ -176,260 +256,226 @@ export default function AdminDashboard() {
     )
   }
 
+  const quickActions = [
+    {
+      title: "Aggiungi Item",
+      description: "Nuovo piatto o bevanda",
+      icon: Plus,
+      color: "bg-green-500",
+      action: () => router.push("/admin/menu/add")
+    },
+    {
+      title: "Modifica Menu",
+      description: "Gestisci items esistenti",
+      icon: Edit3,
+      color: "bg-blue-500",
+      action: () => router.push("/admin/menu")
+    },
+    {
+      title: "Operazioni Bulk",
+      description: "Gestione multipla items",
+      icon: Users,
+      color: "bg-slate-500",
+      action: () => router.push("/admin/menu/bulk")
+    },
+    {
+      title: "Gestione Prezzi",
+      description: "Template e cronologia",
+      icon: BarChart3,
+      color: "bg-indigo-500",
+      action: () => router.push("/admin/pricing")
+    },
+    {
+      title: "Categorie",
+      description: "Organizza il menu",
+      icon: Tag,
+      color: "bg-purple-500",
+      action: () => router.push("/admin/categories")
+    },
+    {
+      title: "Vedi Menu",
+      description: "Preview cliente",
+      icon: Eye,
+      color: "bg-orange-500",
+      action: () => window.open("/", "_blank")
+    }
+  ]
+
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-gray-50 pb-20">
       {/* Header */}
-      <header className="bg-white border-b border-gray-100 sticky top-0 z-50">
-        <div className="px-4 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <motion.div
-              animate={{ rotate: [0, 360] }}
-              transition={{ duration: 8, repeat: Number.POSITIVE_INFINITY, ease: "linear" }}
-              className="text-2xl"
-            >
-              ⚙️
-            </motion.div>
-            <div>
-              <h1 className="text-lg font-medium text-black">Admin</h1>
-              <p className="text-xs text-gray-500">Tennis Sports Bar</p>
-            </div>
+      <div className="bg-white border-b sticky top-0 z-10">
+        <div className="p-4 flex items-center justify-between">
+          <div>
+            <h1 className="text-xl font-bold text-gray-900">Dashboard Admin</h1>
+            <p className="text-sm text-gray-500">Tennis Sports Bar</p>
           </div>
-
-          <div className="flex items-center gap-2">
-            <Button variant="ghost" onClick={() => router.push("/")} className="text-gray-600 hover:text-black p-2">
-              <span className="text-lg">🏠</span>
-            </Button>
-            <Button variant="ghost" onClick={handleLogout} className="text-gray-600 hover:text-black p-2">
-              <span className="text-lg">🚪</span>
-            </Button>
-          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleLogout}
+            className="text-red-600 hover:text-red-700 hover:bg-red-50"
+          >
+            <LogOut className="w-4 h-4 mr-2" />
+            Esci
+          </Button>
         </div>
-      </header>
+      </div>
 
-      {/* Tab Navigation */}
-      <nav className="bg-white border-b border-gray-100 sticky top-16 z-40">
-        <div className="flex overflow-x-auto px-2 py-2">
-          {tabs.map((tab) => (
-            <Button
-              key={tab.id}
-              variant="ghost"
-              onClick={() => setActiveTab(tab.id)}
-              className={`flex-shrink-0 flex flex-col items-center gap-1 p-3 mx-1 rounded-lg transition-all ${
-                activeTab === tab.id ? "bg-black text-white" : "text-gray-600 hover:text-black hover:bg-gray-50"
-              }`}
-            >
-              <span className="text-lg">{tab.emoji}</span>
-              <span className="text-xs font-medium">{tab.label}</span>
-            </Button>
-          ))}
-        </div>
-      </nav>
-
-      {/* Content */}
-      <main className="px-4 py-6 pb-20">
-        <AnimatePresence mode="wait">
-          {/* Overview Tab */}
-          {activeTab === "overview" && (
-            <motion.div
-              key="overview"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              className="space-y-6"
-            >
-              <div className="grid grid-cols-2 gap-4">
-                <Card className="border border-gray-100">
-                  <CardContent className="p-4 text-center">
-                    <div className="text-2xl mb-2">🍽️</div>
-                    <div className="text-2xl font-light text-black">{getTotalItems()}</div>
-                    <div className="text-xs text-gray-500">Piatti</div>
-                  </CardContent>
-                </Card>
-
-                <Card className="border border-gray-100">
-                  <CardContent className="p-4 text-center">
-                    <div className="text-2xl mb-2">🍺</div>
-                    <div className="text-2xl font-light text-black">{birreSpina.length}</div>
-                    <div className="text-xs text-gray-500">Birre</div>
-                  </CardContent>
-                </Card>
-
-                <Card className="border border-gray-100">
-                  <CardContent className="p-4 text-center">
-                    <div className="text-2xl mb-2">🥤</div>
-                    <div className="text-2xl font-light text-black">{bevande.length}</div>
-                    <div className="text-xs text-gray-500">Bevande</div>
-                  </CardContent>
-                </Card>
-
-                <Card className="border border-gray-100">
-                  <CardContent className="p-4 text-center">
-                    <div className="text-2xl mb-2">☕</div>
-                    <div className="text-2xl font-light text-black">{caffetteria.length}</div>
-                    <div className="text-xs text-gray-500">Caffè</div>
-                  </CardContent>
-                </Card>
+      <div className="p-4 space-y-6">
+        {/* Welcome Card */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3 }}
+        >
+          <Card className="bg-gradient-to-r from-slate-700 to-slate-900 text-white border-0">
+            <CardContent className="p-6">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center">
+                  <Home className="w-6 h-6" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-semibold">Benvenuto nel Pannello Admin</h2>
+                  <p className="text-white/80 text-sm">Gestisci il menu del Tennis Bar</p>
+                  <div className="flex items-center gap-2 mt-2">
+                    <Clock className="w-4 h-4" />
+                    <span className="text-xs">Ultimo aggiornamento: {stats.lastUpdate}</span>
+                  </div>
+                </div>
               </div>
+            </CardContent>
+          </Card>
+        </motion.div>
 
-              <Card className="border border-gray-100">
-                <CardHeader>
-                  <CardTitle className="text-lg font-medium text-black">Azioni Rapide</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <Button
-                    onClick={() => setActiveTab("food")}
-                    className="w-full h-12 bg-black hover:bg-gray-800 text-white justify-start"
-                  >
-                    <span className="text-lg mr-3">🍔</span>
-                    Gestisci Piatti
-                  </Button>
-                  <Button
-                    onClick={() => setActiveTab("drinks")}
-                    className="w-full h-12 bg-black hover:bg-gray-800 text-white justify-start"
-                  >
-                    <span className="text-lg mr-3">🍺</span>
-                    Gestisci Birre
-                  </Button>
-                  <Button
-                    onClick={saveMenuData}
-                    variant="outline"
-                    className="w-full h-12 border-gray-300 hover:bg-gray-50 justify-start bg-transparent"
-                  >
-                    <span className="text-lg mr-3">💾</span>
-                    Salva Modifiche
-                  </Button>
-                </CardContent>
-              </Card>
-            </motion.div>
-          )}
+        {/* Stats Overview */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3, delay: 0.1 }}
+          className="grid grid-cols-2 gap-4"
+        >
+          <Card>
+            <CardContent className="p-4 text-center">
+              <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-2">
+                <Menu className="w-5 h-5 text-blue-600" />
+              </div>
+              <p className="text-2xl font-bold text-gray-900">{stats.totalItems}</p>
+              <p className="text-sm text-gray-500">Items Totali</p>
+            </CardContent>
+          </Card>
 
-          {/* Food Tab */}
-          {activeTab === "food" && (
-            <motion.div
-              key="food"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              className="space-y-6"
-            >
-              <MenuItemEditor
-                title="🍔 Hamburger Classici"
-                items={hamburgerClassici}
-                onUpdate={setHamburgerClassici}
-                category="hamburger"
-              />
-              <MenuItemEditor
-                title="🔥 Super Hamburger"
-                items={superHamburger}
-                onUpdate={setSuperHamburger}
-                category="hamburger"
-              />
-              <MenuItemEditor title="🍢 Mini Piatti" items={miniPiatti} onUpdate={setMiniPiatti} category="appetizer" />
-              <MenuItemEditor
-                title="🍝 Little Italy"
-                items={piattiItaliani}
-                onUpdate={setPiattiItaliani}
-                category="pasta"
-              />
-              <MenuItemEditor title="🍕 Pinse" items={pinse} onUpdate={setPinse} category="pizza" />
-              <MenuItemEditor title="🥪 Sandwich" items={sandwich} onUpdate={setSandwich} category="sandwich" />
-              <MenuItemEditor
-                title="🥩 Piatti Griglia"
-                items={piattiGriglia}
-                onUpdate={setPiattiGriglia}
-                category="grill"
-              />
-              <MenuItemEditor title="🥗 Insalate" items={insalate} onUpdate={setInsalate} category="salad" />
-            </motion.div>
-          )}
+          <Card>
+            <CardContent className="p-4 text-center">
+              <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-2">
+                <TrendingUp className="w-5 h-5 text-green-600" />
+              </div>
+              <p className="text-2xl font-bold text-gray-900">{stats.activeItems}</p>
+              <p className="text-sm text-gray-500">Attivi</p>
+            </CardContent>
+          </Card>
 
-          {/* Drinks Tab */}
-          {activeTab === "drinks" && (
-            <motion.div
-              key="drinks"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-            >
-              <BeerEditor beers={birreSpina} onUpdate={setBirreSpina} />
-            </motion.div>
-          )}
+          <Card>
+            <CardContent className="p-4 text-center">
+              <div className="w-10 h-10 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-2">
+                <Tag className="w-5 h-5 text-purple-600" />
+              </div>
+              <p className="text-2xl font-bold text-gray-900">{stats.categories}</p>
+              <p className="text-sm text-gray-500">Categorie</p>
+            </CardContent>
+          </Card>
 
-          {/* Desserts Tab */}
-          {activeTab === "desserts" && (
-            <motion.div
-              key="desserts"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-            >
-              <MenuItemEditor title="🍰 Dolci" items={dolci} onUpdate={setDolci} category="dessert" />
-            </motion.div>
-          )}
+          <Card>
+            <CardContent className="p-4 text-center">
+              <div className="w-10 h-10 bg-orange-100 rounded-full flex items-center justify-center mx-auto mb-2">
+                <BarChart3 className="w-5 h-5 text-orange-600" />
+              </div>
+              <p className="text-2xl font-bold text-gray-900">100%</p>
+              <p className="text-sm text-gray-500">Disponibili</p>
+            </CardContent>
+          </Card>
+        </motion.div>
 
-          {/* Beverages Tab */}
-          {activeTab === "beverages" && (
-            <motion.div
-              key="beverages"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              className="space-y-6"
-            >
-              <CategoryManager title="🥤 Bevande Analcoliche" categories={bevande} onUpdate={setBevande} />
-              <CategoryManager title="🍷 Vini & Cocktail" categories={viniCocktail} onUpdate={setViniCocktail} />
-              <MenuItemEditor title="☕ Caffetteria" items={caffetteria} onUpdate={setCaffetteria} category="coffee" />
-            </motion.div>
-          )}
-
-          {/* Settings Tab */}
-          {activeTab === "settings" && (
-            <motion.div
-              key="settings"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              className="space-y-4"
-            >
-              <Card className="border border-gray-100">
-                <CardHeader>
-                  <CardTitle className="text-lg font-medium text-black">⚙️ Impostazioni</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="flex items-center justify-between p-4 border border-gray-100 rounded-lg">
-                    <div>
-                      <h3 className="font-medium text-black">💾 Salva Menu</h3>
-                      <p className="text-sm text-gray-500">Salva tutte le modifiche</p>
+        {/* Quick Actions */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3, delay: 0.2 }}
+        >
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Azioni Rapide</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {quickActions.map((action, index) => (
+                <motion.button
+                  key={action.title}
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ duration: 0.3, delay: 0.3 + index * 0.05 }}
+                  onClick={action.action}
+                  className="w-full p-4 bg-gray-50 hover:bg-gray-100 rounded-lg border transition-colors text-left"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className={`w-10 h-10 ${action.color} rounded-full flex items-center justify-center`}>
+                      <action.icon className="w-5 h-5 text-white" />
                     </div>
-                    <Button onClick={saveMenuData} className="bg-black hover:bg-gray-800 text-white px-6">
-                      Salva
-                    </Button>
-                  </div>
-
-                  <div className="flex items-center justify-between p-4 border border-gray-100 rounded-lg">
                     <div>
-                      <h3 className="font-medium text-black">🔄 Reset Menu</h3>
-                      <p className="text-sm text-gray-500">Ripristina valori originali</p>
+                      <p className="font-medium text-gray-900">{action.title}</p>
+                      <p className="text-sm text-gray-500">{action.description}</p>
                     </div>
-                    <Button
-                      variant="outline"
-                      className="border-gray-300 hover:bg-gray-100 bg-transparent"
-                      onClick={() => {
-                        if (confirm("Sei sicuro di voler ripristinare il menu originale?")) {
-                          localStorage.removeItem("menuData")
-                          window.location.reload()
-                        }
-                      }}
-                    >
-                      Reset
-                    </Button>
                   </div>
-                </CardContent>
-              </Card>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </main>
+                </motion.button>
+              ))}
+            </CardContent>
+          </Card>
+        </motion.div>
+
+        {/* System Status */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3, delay: 0.3 }}
+        >
+          <Alert className="border-green-200 bg-green-50">
+            <AlertCircle className="w-4 h-4 text-green-600" />
+            <AlertDescription className="text-green-700">
+              Sistema operativo. Menu caricato correttamente con {stats.totalItems} items.
+            </AlertDescription>
+          </Alert>
+        </motion.div>
+      </div>
+
+      {/* Bottom Navigation */}
+      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200">
+        <div className="grid grid-cols-4 gap-1">
+          <button className="p-4 text-center bg-slate-700 text-white">
+            <Home className="w-5 h-5 mx-auto mb-1" />
+            <span className="text-xs">Dashboard</span>
+          </button>
+          <button 
+            onClick={() => router.push("/admin/menu")}
+            className="p-4 text-center text-gray-600 hover:bg-gray-50"
+          >
+            <Menu className="w-5 h-5 mx-auto mb-1" />
+            <span className="text-xs">Menu</span>
+          </button>
+          <button 
+            onClick={() => router.push("/admin/categories")}
+            className="p-4 text-center text-gray-600 hover:bg-gray-50"
+          >
+            <Tag className="w-5 h-5 mx-auto mb-1" />
+            <span className="text-xs">Categorie</span>
+          </button>
+          <button 
+            onClick={() => router.push("/admin/settings")}
+            className="p-4 text-center text-gray-600 hover:bg-gray-50"
+          >
+            <Settings className="w-5 h-5 mx-auto mb-1" />
+            <span className="text-xs">Impostazioni</span>
+          </button>
+        </div>
+      </div>
     </div>
   )
 }
