@@ -17,6 +17,7 @@ import {
   ArrowLeft,
   MoreVertical,
   Eye,
+  EyeOff,
   Home,
   Menu,
   Settings,
@@ -211,6 +212,68 @@ export default function AdminMenuPage() {
     return tags
   }
 
+  // Action handlers
+  const handleEditItem = (item: MenuItem) => {
+    // For now, show an alert with item details - can be improved with inline editing
+    const newName = prompt("Modifica nome:", item.name)
+    if (newName && newName !== item.name) {
+      console.log(`Updating item ${item._id} name from "${item.name}" to "${newName}"`)
+      // TODO: Implement API call to update item
+      alert("Funzione di modifica in sviluppo!")
+    }
+  }
+
+  const handleToggleAvailability = async (item: MenuItem) => {
+    const newAvailability = !item.available
+    console.log(`Toggling availability for ${item.name}: ${item.available} -> ${newAvailability}`)
+    
+    try {
+      // TODO: Implement API call to update availability
+      // const response = await fetch(`/api/menu/${item._id}`, {
+      //   method: 'PATCH',
+      //   headers: { 'Content-Type': 'application/json' },
+      //   body: JSON.stringify({ available: newAvailability })
+      // })
+      
+      // For now, update local state
+      const updatedItems = allItems.map(i => 
+        i._id === item._id ? { ...i, available: newAvailability } : i
+      )
+      setAllItems(updatedItems)
+      
+      alert(`Item "${item.name}" ${newAvailability ? 'reso visibile' : 'nascosto'}!`)
+      
+    } catch (error) {
+      console.error("Error toggling availability:", error)
+      alert("Errore durante l'aggiornamento")
+    }
+  }
+
+  const handleDeleteItem = async (item: MenuItem) => {
+    if (!confirm(`Sei sicuro di voler eliminare "${item.name}"?\n\nQuesta azione non può essere annullata.`)) {
+      return
+    }
+
+    try {
+      console.log(`Deleting item: ${item.name} (${item._id})`)
+      
+      // TODO: Implement API call to delete item
+      // const response = await fetch(`/api/menu/${item._id}`, {
+      //   method: 'DELETE'
+      // })
+      
+      // For now, remove from local state
+      const updatedItems = allItems.filter(i => i._id !== item._id)
+      setAllItems(updatedItems)
+      
+      alert(`Item "${item.name}" eliminato!`)
+      
+    } catch (error) {
+      console.error("Error deleting item:", error)
+      alert("Errore durante l'eliminazione")
+    }
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -376,7 +439,7 @@ export default function AdminMenuPage() {
                           <Button
                             variant="outline"
                             size="sm"
-                            onClick={() => router.push(`/admin/menu/edit/${item._id}`)}
+                            onClick={() => handleEditItem(item)}
                             className="flex-1"
                           >
                             <Edit3 className="w-4 h-4 mr-2" />
@@ -385,22 +448,15 @@ export default function AdminMenuPage() {
                           <Button
                             variant="outline"
                             size="sm"
-                            onClick={() => {
-                              // Toggle availability
-                              console.log("Toggle availability for:", item.name)
-                            }}
+                            onClick={() => handleToggleAvailability(item)}
                             className={item.available ? "text-green-600" : "text-red-600"}
                           >
-                            <Eye className="w-4 h-4" />
+                            {item.available ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
                           </Button>
                           <Button
                             variant="outline"
                             size="sm"
-                            onClick={() => {
-                              if (confirm(`Eliminare "${item.name}"?`)) {
-                                console.log("Delete item:", item.name)
-                              }
-                            }}
+                            onClick={() => handleDeleteItem(item)}
                             className="text-red-600 hover:text-red-700"
                           >
                             <Trash2 className="w-4 h-4" />
