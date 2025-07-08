@@ -36,43 +36,29 @@ export default function TennisMenuApp() {
 
   // Raccogli tutti gli items per la ricerca
   const allMenuItems = useMemo(() => {
-    if (!menuData || !Array.isArray(menuData)) return []
+    if (!menuData) return []
     
     const items: MenuItem[] = []
     
     // Items da ogni categoria
-    menuData.forEach((category: any) => {
-      // Items diretti dalla categoria
-      if (category?.items && Array.isArray(category.items)) {
+    Object.values(menuData).forEach((category) => {
+      if (category?.items) {
         items.push(...category.items)
       }
       // Items dalle sottocategorie
-      if (category?.subcategories && Array.isArray(category.subcategories)) {
-        category.subcategories.forEach((sub: any) => {
-          if (sub?.items && Array.isArray(sub.items)) {
-            items.push(...sub.items)
-          }
-        })
+             if (category?.subcategories) {
+         category.subcategories.forEach((sub: any) => {
+           if (sub.items) {
+             items.push(...sub.items)
+           }
+         })
       }
     })
     
     return items
   }, [menuData])
 
-  // Organizza dati per sezioni
-  const menuSectionData = useMemo(() => {
-    if (!menuData || !Array.isArray(menuData)) return {}
-    
-    const sections: any = {}
-    
-    menuData.forEach((category: any) => {
-      if (category.section) {
-        sections[category.section] = category
-      }
-    })
-    
-    return sections
-  }, [menuData])
+  // menuData è già organizzato dall'hook - non serve rimappare
 
   // Stato di caricamento con skeleton
   if (loading) {
@@ -321,7 +307,7 @@ export default function TennisMenuApp() {
         {!showSearch && (
           <>
             {/* Sezione Hamburger */}
-            {menuSectionData.hamburger && (
+            {menuData.hamburger && (
               <motion.section
                 id="hamburger"
                 variants={containerVariants}
@@ -330,11 +316,11 @@ export default function TennisMenuApp() {
                 viewport={{ once: true }}
                 className="mb-12"
               >
-                <SectionHeader title={menuSectionData.hamburger.name} emoji={menuSectionData.hamburger.emoji} />
+                <SectionHeader title={menuData.hamburger.name} emoji={menuData.hamburger.emoji} />
                 <p className="text-center text-gray-600 dark:text-gray-300 mb-6 text-lg">Serviti sempre con rustic fries</p>
                 
                 <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-                  {menuSectionData.hamburger.items?.map((item: MenuItem) => (
+                  {menuData.hamburger.items?.map((item: MenuItem) => (
                     <MenuCard key={item._id} item={item} />
                   ))}
                 </div>
@@ -342,7 +328,7 @@ export default function TennisMenuApp() {
             )}
 
             {/* Sezione Food */}
-            {menuSectionData.food && (
+            {menuData.food && (
               <motion.section
                 id="food"
                 variants={containerVariants}
@@ -351,10 +337,10 @@ export default function TennisMenuApp() {
                 viewport={{ once: true }}
                 className="mb-12"
               >
-                <SectionHeader title={menuSectionData.food.name} emoji={menuSectionData.food.emoji} />
+                <SectionHeader title={menuData.food.name} emoji={menuData.food.emoji} />
                 
                 <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-                  {menuSectionData.food.items?.map((item: MenuItem) => (
+                  {menuData.food.items?.map((item: MenuItem) => (
                     <MenuCard key={item._id} item={item} />
                   ))}
                 </div>
@@ -362,7 +348,7 @@ export default function TennisMenuApp() {
             )}
 
             {/* Sezione Drinks */}
-            {menuSectionData.drinks && (
+            {menuData.drinks && (
               <motion.section
                 id="drinks"
                 variants={containerVariants}
@@ -371,16 +357,16 @@ export default function TennisMenuApp() {
                 viewport={{ once: true }}
                 className="mb-12"
               >
-                <SectionHeader title={menuSectionData.drinks.name} emoji={menuSectionData.drinks.emoji} />
+                <SectionHeader title={menuData.drinks.name} emoji={menuData.drinks.emoji} />
                 
                 {/* Birre alla spina (items diretti) */}
-                {menuSectionData.drinks.items?.length > 0 && (
+                {menuData.drinks.items?.length > 0 && (
                   <div className="mb-8">
                     <h3 className="text-xl font-bold text-gray-800 dark:text-white mb-4 border-b border-gray-200 dark:border-gray-700 pb-2">
                       Birre alla Spina
                     </h3>
                     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                      {menuSectionData.drinks.items.map((item: MenuItem) => (
+                      {menuData.drinks.items.map((item: MenuItem) => (
                         <MenuCard key={item._id} item={item} />
                       ))}
                     </div>
@@ -388,14 +374,14 @@ export default function TennisMenuApp() {
                 )}
 
                 {/* Sottocategorie (Bevande, Vini, etc.) */}
-                {menuSectionData.drinks.subcategories?.map((subcategory: any) => (
+                {menuData.drinks.subcategories?.map((subcategory: any) => (
                   <SubcategorySection key={subcategory._id} subcategory={subcategory} />
                 ))}
               </motion.section>
             )}
 
             {/* Sezione Dolci */}
-            {menuSectionData.desserts && (
+            {menuData.desserts && (
               <motion.section
                 id="desserts"
                 variants={containerVariants}
@@ -404,10 +390,10 @@ export default function TennisMenuApp() {
                 viewport={{ once: true }}
                 className="mb-12"
               >
-                <SectionHeader title={menuSectionData.desserts.name} emoji={menuSectionData.desserts.emoji} />
+                <SectionHeader title={menuData.desserts.name} emoji={menuData.desserts.emoji} />
                 
                 <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-                  {menuSectionData.desserts.items?.map((item: MenuItem) => (
+                  {menuData.desserts.items?.map((item: MenuItem) => (
                     <MenuCard key={item._id} item={item} />
                   ))}
                 </div>
