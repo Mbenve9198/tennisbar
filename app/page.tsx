@@ -36,19 +36,20 @@ export default function TennisMenuApp() {
 
   // Raccogli tutti gli items per la ricerca
   const allMenuItems = useMemo(() => {
-    if (!menuData) return []
+    if (!menuData || !Array.isArray(menuData)) return []
     
     const items: MenuItem[] = []
     
-    // Items diretti dalle categorie
-    Object.values(menuData).forEach(category => {
-      if (category?.items) {
+    // Items da ogni categoria
+    menuData.forEach((category: any) => {
+      // Items diretti dalla categoria
+      if (category?.items && Array.isArray(category.items)) {
         items.push(...category.items)
       }
       // Items dalle sottocategorie
-      if (category?.subcategories) {
+      if (category?.subcategories && Array.isArray(category.subcategories)) {
         category.subcategories.forEach((sub: any) => {
-          if (sub.items) {
+          if (sub?.items && Array.isArray(sub.items)) {
             items.push(...sub.items)
           }
         })
@@ -56,6 +57,21 @@ export default function TennisMenuApp() {
     })
     
     return items
+  }, [menuData])
+
+  // Organizza dati per sezioni
+  const menuSectionData = useMemo(() => {
+    if (!menuData || !Array.isArray(menuData)) return {}
+    
+    const sections: any = {}
+    
+    menuData.forEach((category: any) => {
+      if (category.section) {
+        sections[category.section] = category
+      }
+    })
+    
+    return sections
   }, [menuData])
 
   // Stato di caricamento con skeleton
@@ -197,7 +213,7 @@ export default function TennisMenuApp() {
         {subcategory.name}
       </h3>
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        {subcategory.items.map((item: MenuItem) => (
+        {subcategory.items?.map((item: MenuItem) => (
           <MenuCard key={item._id} item={item} />
         ))}
       </div>
@@ -304,147 +320,147 @@ export default function TennisMenuApp() {
         {/* Sezioni Menu Normali (nascoste durante ricerca attiva) */}
         {!showSearch && (
           <>
-        {/* Sezione Hamburger */}
-        {menuData.hamburger && (
-          <motion.section
-            id="hamburger"
-            variants={containerVariants}
-            initial="hidden"
-            whileInView="visible"
-            viewport={{ once: true }}
-            className="mb-12"
-          >
-            <SectionHeader title={menuData.hamburger.name} emoji={menuData.hamburger.emoji} />
-            <p className="text-center text-gray-600 dark:text-gray-300 mb-6 text-lg">Serviti sempre con rustic fries</p>
-            
-            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-              {menuData.hamburger.items.map((item) => (
-                <MenuCard key={item._id} item={item} />
-              ))}
-            </div>
-          </motion.section>
-        )}
-
-        {/* Sezione Food */}
-        {menuData.food && (
-          <motion.section
-            id="food"
-            variants={containerVariants}
-            initial="hidden"
-            whileInView="visible"
-            viewport={{ once: true }}
-            className="mb-12"
-          >
-            <SectionHeader title={menuData.food.name} emoji={menuData.food.emoji} />
-            
-            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-              {menuData.food.items.map((item) => (
-                <MenuCard key={item._id} item={item} />
-              ))}
-            </div>
-          </motion.section>
-        )}
-
-        {/* Sezione Drinks */}
-        {menuData.drinks && (
-          <motion.section
-            id="drinks"
-            variants={containerVariants}
-            initial="hidden"
-            whileInView="visible"
-            viewport={{ once: true }}
-            className="mb-12"
-          >
-            <SectionHeader title={menuData.drinks.name} emoji={menuData.drinks.emoji} />
-            
-            {/* Birre alla spina (items diretti) */}
-            {menuData.drinks.items.length > 0 && (
-              <div className="mb-8">
-                <h3 className="text-xl font-bold text-gray-800 dark:text-white mb-4 border-b border-gray-200 dark:border-gray-700 pb-2">
-                  Birre alla Spina
-                </h3>
-                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                  {menuData.drinks.items.map((item) => (
+            {/* Sezione Hamburger */}
+            {menuSectionData.hamburger && (
+              <motion.section
+                id="hamburger"
+                variants={containerVariants}
+                initial="hidden"
+                whileInView="visible"
+                viewport={{ once: true }}
+                className="mb-12"
+              >
+                <SectionHeader title={menuSectionData.hamburger.name} emoji={menuSectionData.hamburger.emoji} />
+                <p className="text-center text-gray-600 dark:text-gray-300 mb-6 text-lg">Serviti sempre con rustic fries</p>
+                
+                <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+                  {menuSectionData.hamburger.items?.map((item: MenuItem) => (
                     <MenuCard key={item._id} item={item} />
                   ))}
                 </div>
-              </div>
+              </motion.section>
             )}
 
-            {/* Sottocategorie (Bevande, Vini, etc.) */}
-            {menuData.drinks.subcategories.map((subcategory) => (
-              <SubcategorySection key={subcategory._id} subcategory={subcategory} />
-            ))}
-          </motion.section>
-        )}
+            {/* Sezione Food */}
+            {menuSectionData.food && (
+              <motion.section
+                id="food"
+                variants={containerVariants}
+                initial="hidden"
+                whileInView="visible"
+                viewport={{ once: true }}
+                className="mb-12"
+              >
+                <SectionHeader title={menuSectionData.food.name} emoji={menuSectionData.food.emoji} />
+                
+                <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+                  {menuSectionData.food.items?.map((item: MenuItem) => (
+                    <MenuCard key={item._id} item={item} />
+                  ))}
+                </div>
+              </motion.section>
+            )}
 
-        {/* Sezione Dolci */}
-        {menuData.desserts && (
-          <motion.section
-            id="desserts"
-            variants={containerVariants}
-            initial="hidden"
-            whileInView="visible"
-            viewport={{ once: true }}
-            className="mb-12"
-          >
-            <SectionHeader title={menuData.desserts.name} emoji={menuData.desserts.emoji} />
-            
-            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-              {menuData.desserts.items.map((item) => (
-                <MenuCard key={item._id} item={item} />
-              ))}
-            </div>
-          </motion.section>
-        )}
+            {/* Sezione Drinks */}
+            {menuSectionData.drinks && (
+              <motion.section
+                id="drinks"
+                variants={containerVariants}
+                initial="hidden"
+                whileInView="visible"
+                viewport={{ once: true }}
+                className="mb-12"
+              >
+                <SectionHeader title={menuSectionData.drinks.name} emoji={menuSectionData.drinks.emoji} />
+                
+                {/* Birre alla spina (items diretti) */}
+                {menuSectionData.drinks.items?.length > 0 && (
+                  <div className="mb-8">
+                    <h3 className="text-xl font-bold text-gray-800 dark:text-white mb-4 border-b border-gray-200 dark:border-gray-700 pb-2">
+                      Birre alla Spina
+                    </h3>
+                    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                      {menuSectionData.drinks.items.map((item: MenuItem) => (
+                        <MenuCard key={item._id} item={item} />
+                      ))}
+                    </div>
+                  </div>
+                )}
 
-        {/* Sezione Info */}
-        <motion.section
-          id="info"
-          initial={{ opacity: 0, y: 50 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          className="mb-12"
-        >
-          <SectionHeader title="Informazioni" emoji="📍" />
-          <div className="grid gap-6 md:grid-cols-2">
-            <Card className="border-2 border-gray-200 dark:border-gray-700">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <MapPin className="w-5 h-5" />
-                  Dove Siamo
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-gray-600 dark:text-gray-300 mb-2">
-                  Via Tennis Court, 123<br />
-                  00100 Roma, Italia
-                </p>
-                <p className="text-sm text-gray-500 dark:text-gray-400">
-                  Aperto tutti i giorni<br />
-                  12:00 - 02:00
-                </p>
-              </CardContent>
-            </Card>
+                {/* Sottocategorie (Bevande, Vini, etc.) */}
+                {menuSectionData.drinks.subcategories?.map((subcategory: any) => (
+                  <SubcategorySection key={subcategory._id} subcategory={subcategory} />
+                ))}
+              </motion.section>
+            )}
 
-            <Card className="border-2 border-gray-200 dark:border-gray-700">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Wifi className="w-5 h-5" />
-                  WiFi Gratuito
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-gray-600 dark:text-gray-300 mb-2">
-                  Rete: TennisBar_Free
-                </p>
-                <p className="text-sm text-gray-500 dark:text-gray-400">
-                  Password: tennis2024
-                </p>
-              </CardContent>
-            </Card>
-          </div>
-        </motion.section>
+            {/* Sezione Dolci */}
+            {menuSectionData.desserts && (
+              <motion.section
+                id="desserts"
+                variants={containerVariants}
+                initial="hidden"
+                whileInView="visible"
+                viewport={{ once: true }}
+                className="mb-12"
+              >
+                <SectionHeader title={menuSectionData.desserts.name} emoji={menuSectionData.desserts.emoji} />
+                
+                <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+                  {menuSectionData.desserts.items?.map((item: MenuItem) => (
+                    <MenuCard key={item._id} item={item} />
+                  ))}
+                </div>
+              </motion.section>
+            )}
+
+            {/* Sezione Info */}
+            <motion.section
+              id="info"
+              initial={{ opacity: 0, y: 50 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              className="mb-12"
+            >
+              <SectionHeader title="Informazioni" emoji="📍" />
+              <div className="grid gap-6 md:grid-cols-2">
+                <Card className="border-2 border-gray-200 dark:border-gray-700">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <MapPin className="w-5 h-5" />
+                      Dove Siamo
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-gray-600 dark:text-gray-300 mb-2">
+                      Via Tennis Court, 123<br />
+                      00100 Roma, Italia
+                    </p>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                      Aperto tutti i giorni<br />
+                      12:00 - 02:00
+                    </p>
+                  </CardContent>
+                </Card>
+
+                <Card className="border-2 border-gray-200 dark:border-gray-700">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Wifi className="w-5 h-5" />
+                      WiFi Gratuito
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-gray-600 dark:text-gray-300 mb-2">
+                      Rete: TennisBar_Free
+                    </p>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                      Password: tennis2024
+                    </p>
+                  </CardContent>
+                </Card>
+              </div>
+            </motion.section>
           </>
         )}
       </main>
