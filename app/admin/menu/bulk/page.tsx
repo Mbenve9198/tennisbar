@@ -243,17 +243,68 @@ export default function BulkOperationsPage() {
 
     setProcessing(true)
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 2000))
+      const itemIds = Array.from(selectedItems)
       
-      console.log(`Executing ${actionId} on ${selectedItems.size} items`)
+      // Prepare request data based on action
+      let requestData: any = {
+        action: actionId,
+        itemIds
+      }
+
+      // Handle actions that need additional data
+      if (actionId === "add_tag") {
+        const tag = prompt("Inserisci il tag da aggiungere:")
+        if (!tag) {
+          setProcessing(false)
+          return
+        }
+        requestData.updates = { tag }
+      } else if (actionId === "update_prices") {
+        const priceChangeType = confirm("Vuoi applicare una variazione percentuale?\n(OK = Percentuale, Annulla = Importo fisso)")
+        const value = parseFloat(prompt(
+          priceChangeType 
+            ? "Inserisci la percentuale di variazione (es: 10 per +10%, -5 per -5%):" 
+            : "Inserisci l'importo da aggiungere/sottrarre (es: 1.50, -0.50):"
+        ) || "0")
+        
+        if (isNaN(value)) {
+          alert("Valore non valido")
+          setProcessing(false)
+          return
+        }
+
+        requestData.updates = {
+          priceChange: {
+            type: priceChangeType ? "percentage" : "fixed",
+            value
+          }
+        }
+      }
+
+      const response = await fetch("/api/menu/bulk", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(requestData)
+      })
+
+      const data = await response.json()
       
-      // Reset selection
-      setSelectedItems(new Set())
-      setShowBulkPanel(false)
+      if (data.success) {
+        alert(`Operazione completata! ${data.data.itemsAffected} items modificati.`)
+        
+        // Reload data to reflect changes
+        await loadMenuData()
+        
+        // Reset selection
+        setSelectedItems(new Set())
+        setShowBulkPanel(false)
+      } else {
+        throw new Error(data.error || 'Bulk operation failed')
+      }
       
     } catch (error) {
       console.error("Bulk operation failed:", error)
+      alert("Errore durante l'operazione: " + (error as Error).message)
     } finally {
       setProcessing(false)
     }

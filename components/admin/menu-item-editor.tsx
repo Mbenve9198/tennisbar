@@ -1,239 +1,409 @@
 "use client"
 
 import { useState } from "react"
-import { motion, AnimatePresence } from "framer-motion"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
 import { Switch } from "@/components/ui/switch"
+import { Label } from "@/components/ui/label"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { 
+  Save, 
+  X, 
+  Edit3, 
+  Plus,
+  Trash2,
+  Eye,
+  EyeOff
+} from "lucide-react"
 
 interface MenuItem {
+  _id: string
   name: string
-  price: string
   description?: string
-  popular?: boolean
-  special?: boolean
+  price?: number
+  beer_price_30cl?: number
+  beer_price_50cl?: number
+  pricing?: {
+    regular?: number
+    small?: number
+    large?: number
+  }
+  category: string
+  subcategory?: string
+  tags: string[]
+  available: boolean
 }
 
 interface MenuItemEditorProps {
-  title: string
-  items: MenuItem[]
-  onUpdate: (items: MenuItem[]) => void
-  category: string
+  item: MenuItem
+  onSave: (updatedItem: MenuItem) => void
+  onCancel: () => void
+  onDelete?: (item: MenuItem) => void
+  isEditing?: boolean
 }
 
-export function MenuItemEditor({ title, items, onUpdate, category }: MenuItemEditorProps) {
-  const [editingIndex, setEditingIndex] = useState<number | null>(null)
-  const [isAdding, setIsAdding] = useState(false)
-  const [editForm, setEditForm] = useState<MenuItem>({
-    name: "",
-    price: "",
-    description: "",
-    popular: false,
-    special: false,
+const AVAILABLE_TAGS = [
+  "popular", "special", "vegetarian", "vegan", "gluten-free", 
+  "spicy", "new", "seasonal", "signature", "recommended"
+]
+
+export default function MenuItemEditor({ 
+  item, 
+  onSave, 
+  onCancel, 
+  onDelete,
+  isEditing = false 
+}: MenuItemEditorProps) {
+  const [editing, setEditing] = useState(isEditing)
+  const [loading, setSaving] = useState(false)
+  const [formData, setFormData] = useState({
+    name: item.name,
+    description: item.description || "",
+    price: item.price || 0,
+    beer_price_30cl: item.beer_price_30cl || 0,
+    beer_price_50cl: item.beer_price_50cl || 0,
+    category: item.category,
+    subcategory: item.subcategory || "",
+    tags: item.tags || [],
+    available: item.available
   })
 
-  const handleEdit = (index: number) => {
-    setEditingIndex(index)
-    setEditForm({ ...items[index] })
-    setIsAdding(false)
-  }
+  const [errors, setErrors] = useState<{[key: string]: string}>({})
 
-  const handleAdd = () => {
-    setIsAdding(true)
-    setEditingIndex(null)
-    setEditForm({
-      name: "",
-      price: "",
-      description: "",
-      popular: false,
-      special: false,
-    })
-  }
-
-  const handleSave = () => {
-    if (!editForm.name || !editForm.price) return
-
-    const newItems = [...items]
-
-    if (isAdding) {
-      newItems.push(editForm)
-    } else if (editingIndex !== null) {
-      newItems[editingIndex] = editForm
+  const validateForm = (): boolean => {
+    const newErrors: {[key: string]: string} = {}
+    
+    if (!formData.name.trim()) {
+      newErrors.name = "Nome richiesto"
+    }
+    
+    if (formData.price <= 0 && !formData.beer_price_30cl && !formData.beer_price_50cl) {
+      newErrors.price = "Almeno un prezzo deve essere specificato"
     }
 
-    onUpdate(newItems)
-    setEditingIndex(null)
-    setIsAdding(false)
-    setEditForm({
-      name: "",
-      price: "",
-      description: "",
-      popular: false,
-      special: false,
-    })
+    setErrors(newErrors)
+    return Object.keys(newErrors).length === 0
   }
 
-  const handleDelete = (index: number) => {
-    if (confirm("Eliminare questo elemento?")) {
-      const newItems = items.filter((_, i) => i !== index)
-      onUpdate(newItems)
+  const handleSave = async () => {
+    if (!validateForm()) return
+
+    setSaving(true)
+    try {
+      const response = await fetch(`/api/menu/${item._id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formData)
+      })
+
+      const data = await response.json()
+      
+      if (data.success) {
+        onSave({ ...item, ...formData })
+        setEditing(false)
+      } else {
+        throw new Error(data.error || 'Update failed')
+      }
+    } catch (error) {
+      console.error("Error saving item:", error)
+      alert("Errore durante il salvataggio: " + (error as Error).message)
+    } finally {
+      setSaving(false)
     }
   }
 
   const handleCancel = () => {
-    setEditingIndex(null)
-    setIsAdding(false)
-    setEditForm({
-      name: "",
-      price: "",
-      description: "",
-      popular: false,
-      special: false,
+    setFormData({
+      name: item.name,
+      description: item.description || "",
+      price: item.price || 0,
+      beer_price_30cl: item.beer_price_30cl || 0,
+      beer_price_50cl: item.beer_price_50cl || 0,
+      category: item.category,
+      subcategory: item.subcategory || "",
+      tags: item.tags || [],
+      available: item.available
     })
+    setErrors({})
+    setEditing(false)
+    onCancel()
   }
 
-  return (
-    <Card className="border border-gray-100">
-      <CardHeader>
-        <div className="flex items-center justify-between">
-          <CardTitle className="text-lg font-medium text-black">{title}</CardTitle>
-          <Button onClick={handleAdd} className="bg-black hover:bg-gray-800 text-white px-4 py-2">
-            <span className="text-sm mr-2">➕</span>
-            Aggiungi
-          </Button>
-        </div>
-        <p className="text-sm text-gray-500">{items.length} elementi</p>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <AnimatePresence>
-          {(isAdding || editingIndex !== null) && (
-            <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: "auto" }}
-              exit={{ opacity: 0, height: 0 }}
-              className="border border-dashed border-gray-300 rounded-lg p-4 space-y-4"
-            >
-              <div className="space-y-4">
-                <div>
-                  <Label htmlFor="name" className="text-sm text-gray-700">
-                    Nome *
-                  </Label>
-                  <Input
-                    id="name"
-                    value={editForm.name}
-                    onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
-                    placeholder="Nome del piatto"
-                    className="h-12 mt-1"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="price" className="text-sm text-gray-700">
-                    Prezzo *
-                  </Label>
-                  <Input
-                    id="price"
-                    value={editForm.price}
-                    onChange={(e) => setEditForm({ ...editForm, price: e.target.value })}
-                    placeholder="€0,00"
-                    className="h-12 mt-1"
-                  />
-                </div>
-              </div>
+  const handleAddTag = (tag: string) => {
+    if (!formData.tags.includes(tag)) {
+      setFormData(prev => ({
+        ...prev,
+        tags: [...prev.tags, tag]
+      }))
+    }
+  }
 
+  const handleRemoveTag = (tagToRemove: string) => {
+    setFormData(prev => ({
+      ...prev,
+      tags: prev.tags.filter(tag => tag !== tagToRemove)
+    }))
+  }
+
+  const handleToggleAvailability = async () => {
+    const newAvailability = !item.available
+    
+    try {
+      const response = await fetch(`/api/menu/${item._id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ available: newAvailability })
+      })
+
+      const data = await response.json()
+      
+      if (data.success) {
+        onSave({ ...item, available: newAvailability })
+      } else {
+        throw new Error(data.error || 'Update failed')
+      }
+    } catch (error) {
+      console.error("Error toggling availability:", error)
+      alert("Errore durante l'aggiornamento: " + (error as Error).message)
+    }
+  }
+
+  if (editing) {
+    return (
+      <Card className="border-l-4 border-l-blue-500">
+        <CardContent className="p-4">
+          <div className="space-y-4">
+            {/* Nome */}
+            <div>
+              <Label htmlFor="name">Nome *</Label>
+              <Input
+                id="name"
+                value={formData.name}
+                onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+                className={errors.name ? "border-red-500" : ""}
+              />
+              {errors.name && <p className="text-red-500 text-sm mt-1">{errors.name}</p>}
+            </div>
+
+            {/* Descrizione */}
+            <div>
+              <Label htmlFor="description">Descrizione</Label>
+              <Textarea
+                id="description"
+                value={formData.description}
+                onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
+                rows={2}
+              />
+            </div>
+
+            {/* Prezzi */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
-                <Label htmlFor="description" className="text-sm text-gray-700">
-                  Descrizione
-                </Label>
-                <Textarea
-                  id="description"
-                  value={editForm.description || ""}
-                  onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
-                  placeholder="Descrizione del piatto..."
-                  rows={3}
-                  className="mt-1"
+                <Label htmlFor="price">Prezzo Normale (€)</Label>
+                <Input
+                  id="price"
+                  type="number"
+                  step="0.01"
+                  value={formData.price}
+                  onChange={(e) => setFormData(prev => ({ ...prev, price: parseFloat(e.target.value) || 0 }))}
+                  className={errors.price ? "border-red-500" : ""}
                 />
               </div>
-
-              <div className="flex items-center gap-6">
-                <div className="flex items-center space-x-2">
-                  <Switch
-                    id="popular"
-                    checked={editForm.popular || false}
-                    onCheckedChange={(checked) => setEditForm({ ...editForm, popular: checked })}
-                  />
-                  <Label htmlFor="popular" className="text-sm">
-                    ⭐ Popolare
-                  </Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <Switch
-                    id="special"
-                    checked={editForm.special || false}
-                    onCheckedChange={(checked) => setEditForm({ ...editForm, special: checked })}
-                  />
-                  <Label htmlFor="special" className="text-sm">
-                    🔥 Special
-                  </Label>
-                </div>
+              <div>
+                <Label htmlFor="beer_30">Birra 30cl (€)</Label>
+                <Input
+                  id="beer_30"
+                  type="number"
+                  step="0.01"
+                  value={formData.beer_price_30cl}
+                  onChange={(e) => setFormData(prev => ({ ...prev, beer_price_30cl: parseFloat(e.target.value) || 0 }))}
+                />
               </div>
-
-              <div className="flex gap-2">
-                <Button onClick={handleSave} className="bg-black hover:bg-gray-800 text-white flex-1 h-12">
-                  <span className="text-sm mr-2">💾</span>
-                  Salva
-                </Button>
-                <Button onClick={handleCancel} variant="outline" className="flex-1 h-12 bg-transparent">
-                  <span className="text-sm mr-2">❌</span>
-                  Annulla
-                </Button>
+              <div>
+                <Label htmlFor="beer_50">Birra 50cl (€)</Label>
+                <Input
+                  id="beer_50"
+                  type="number"
+                  step="0.01"
+                  value={formData.beer_price_50cl}
+                  onChange={(e) => setFormData(prev => ({ ...prev, beer_price_50cl: parseFloat(e.target.value) || 0 }))}
+                />
               </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+            </div>
+            {errors.price && <p className="text-red-500 text-sm">{errors.price}</p>}
 
-        <div className="space-y-3">
-          {items.map((item, index) => (
-            <motion.div key={index} layout className="p-4 border border-gray-100 rounded-lg">
-              <div className="flex items-start justify-between mb-2">
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-1">
-                    <h3 className="font-semibold text-black">{item.name}</h3>
-                    {item.popular && (
-                      <Badge variant="secondary" className="bg-gray-100 text-gray-800 text-xs">
-                        ⭐ Popolare
-                      </Badge>
-                    )}
-                    {item.special && (
-                      <Badge variant="secondary" className="bg-gray-100 text-gray-800 text-xs">
-                        🔥 Special
-                      </Badge>
-                    )}
-                  </div>
-                  <p className="text-lg font-bold text-black">{item.price}</p>
-                  {item.description && <p className="text-sm text-gray-600 mt-1">{item.description}</p>}
-                </div>
+            {/* Categoria */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="category">Categoria</Label>
+                <Select value={formData.category} onValueChange={(value) => setFormData(prev => ({ ...prev, category: value }))}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="hamburger">Hamburger</SelectItem>
+                    <SelectItem value="food">Food</SelectItem>
+                    <SelectItem value="drinks">Drinks</SelectItem>
+                    <SelectItem value="desserts">Desserts</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
-              <div className="flex gap-2 mt-3">
-                <Button size="sm" variant="outline" onClick={() => handleEdit(index)} className="flex-1 h-10">
-                  <span className="text-sm mr-1">✏️</span>
-                  Modifica
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => handleDelete(index)}
-                  className="flex-1 h-10 border-gray-300 hover:bg-gray-100"
+              <div>
+                <Label htmlFor="subcategory">Sottocategoria</Label>
+                <Input
+                  id="subcategory"
+                  value={formData.subcategory}
+                  onChange={(e) => setFormData(prev => ({ ...prev, subcategory: e.target.value }))}
+                  placeholder="Opzionale"
+                />
+              </div>
+            </div>
+
+            {/* Tags */}
+            <div>
+              <Label>Tags</Label>
+              <div className="flex flex-wrap gap-2 mb-2">
+                {formData.tags.map((tag) => (
+                  <Badge
+                    key={tag}
+                    variant="secondary"
+                    className="cursor-pointer"
+                    onClick={() => handleRemoveTag(tag)}
+                  >
+                    {tag} <X className="w-3 h-3 ml-1" />
+                  </Badge>
+                ))}
+              </div>
+              <Select onValueChange={handleAddTag}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Aggiungi tag" />
+                </SelectTrigger>
+                <SelectContent>
+                  {AVAILABLE_TAGS.filter(tag => !formData.tags.includes(tag)).map((tag) => (
+                    <SelectItem key={tag} value={tag}>{tag}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Disponibilità */}
+            <div className="flex items-center space-x-2">
+              <Switch
+                id="available"
+                checked={formData.available}
+                onCheckedChange={(checked) => setFormData(prev => ({ ...prev, available: checked }))}
+              />
+              <Label htmlFor="available">Disponibile</Label>
+            </div>
+
+            {/* Azioni */}
+            <div className="flex gap-2 pt-4">
+              <Button onClick={handleSave} disabled={loading} className="flex-1">
+                <Save className="w-4 h-4 mr-2" />
+                {loading ? "Salvataggio..." : "Salva"}
+              </Button>
+              <Button variant="outline" onClick={handleCancel} disabled={loading}>
+                <X className="w-4 h-4 mr-2" />
+                Annulla
+              </Button>
+              {onDelete && (
+                <Button 
+                  variant="destructive" 
+                  onClick={() => onDelete(item)}
+                  disabled={loading}
                 >
-                  <span className="text-sm mr-1">🗑️</span>
-                  Elimina
+                  <Trash2 className="w-4 h-4" />
                 </Button>
+              )}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    )
+  }
+
+  // View mode
+  return (
+    <Card className="border-l-4 border-l-slate-500">
+      <CardContent className="p-4">
+        <div className="flex items-start justify-between">
+          <div className="flex-1 min-w-0">
+            <div className="flex items-start gap-3 mb-2">
+              <div className="flex-1">
+                <h3 className="font-semibold text-gray-900 truncate">
+                  {item.name}
+                </h3>
+                {item.description && (
+                  <p className="text-sm text-gray-600 line-clamp-2 mt-1">
+                    {item.description}
+                  </p>
+                )}
               </div>
-            </motion.div>
-          ))}
+              <div className="text-right flex-shrink-0">
+                <p className="font-bold text-lg text-gray-900">
+                  {item.beer_price_30cl && item.beer_price_50cl 
+                    ? `€${item.beer_price_30cl}/${item.beer_price_50cl}`
+                    : `€${item.price?.toFixed(2) || "N/A"}`
+                  }
+                </p>
+                {item.subcategory && (
+                  <p className="text-xs text-gray-500 capitalize">
+                    {item.subcategory}
+                  </p>
+                )}
+              </div>
+            </div>
+
+            {/* Tags */}
+            {item.tags && item.tags.length > 0 && (
+              <div className="flex gap-1 flex-wrap mb-3">
+                {item.tags.map((tag, idx) => (
+                  <Badge key={idx} variant="secondary" className="text-xs">
+                    {tag}
+                  </Badge>
+                ))}
+                {!item.available && (
+                  <Badge variant="destructive" className="text-xs">
+                    Non Disponibile
+                  </Badge>
+                )}
+              </div>
+            )}
+
+            {/* Actions */}
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setEditing(true)}
+                className="flex-1"
+              >
+                <Edit3 className="w-4 h-4 mr-2" />
+                Modifica
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleToggleAvailability}
+                className={item.available ? "text-green-600" : "text-red-600"}
+              >
+                {item.available ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+              </Button>
+              {onDelete && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => onDelete(item)}
+                  className="text-red-600 hover:text-red-700"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </Button>
+              )}
+            </div>
+          </div>
         </div>
       </CardContent>
     </Card>

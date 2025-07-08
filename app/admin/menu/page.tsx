@@ -228,24 +228,29 @@ export default function AdminMenuPage() {
     console.log(`Toggling availability for ${item.name}: ${item.available} -> ${newAvailability}`)
     
     try {
-      // TODO: Implement API call to update availability
-      // const response = await fetch(`/api/menu/${item._id}`, {
-      //   method: 'PATCH',
-      //   headers: { 'Content-Type': 'application/json' },
-      //   body: JSON.stringify({ available: newAvailability })
-      // })
+      const response = await fetch(`/api/menu/${item._id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ available: newAvailability })
+      })
+
+      const data = await response.json()
       
-      // For now, update local state
-      const updatedItems = allItems.map(i => 
-        i._id === item._id ? { ...i, available: newAvailability } : i
-      )
-      setAllItems(updatedItems)
-      
-      alert(`Item "${item.name}" ${newAvailability ? 'reso visibile' : 'nascosto'}!`)
+      if (data.success) {
+        // Update local state
+        const updatedItems = allItems.map(i => 
+          i._id === item._id ? { ...i, available: newAvailability } : i
+        )
+        setAllItems(updatedItems)
+        
+        alert(`Item "${item.name}" ${newAvailability ? 'reso visibile' : 'nascosto'}!`)
+      } else {
+        throw new Error(data.error || 'Update failed')
+      }
       
     } catch (error) {
       console.error("Error toggling availability:", error)
-      alert("Errore durante l'aggiornamento")
+      alert("Errore durante l'aggiornamento: " + (error as Error).message)
     }
   }
 
@@ -257,20 +262,25 @@ export default function AdminMenuPage() {
     try {
       console.log(`Deleting item: ${item.name} (${item._id})`)
       
-      // TODO: Implement API call to delete item
-      // const response = await fetch(`/api/menu/${item._id}`, {
-      //   method: 'DELETE'
-      // })
+      const response = await fetch(`/api/menu/${item._id}`, {
+        method: 'DELETE'
+      })
+
+      const data = await response.json()
       
-      // For now, remove from local state
-      const updatedItems = allItems.filter(i => i._id !== item._id)
-      setAllItems(updatedItems)
-      
-      alert(`Item "${item.name}" eliminato!`)
+      if (data.success) {
+        // Remove from local state
+        const updatedItems = allItems.filter(i => i._id !== item._id)
+        setAllItems(updatedItems)
+        
+        alert(`Item "${item.name}" eliminato!`)
+      } else {
+        throw new Error(data.error || 'Delete failed')
+      }
       
     } catch (error) {
       console.error("Error deleting item:", error)
-      alert("Errore durante l'eliminazione")
+      alert("Errore durante l'eliminazione: " + (error as Error).message)
     }
   }
 
