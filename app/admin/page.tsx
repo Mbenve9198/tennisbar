@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Lock, User, Smartphone, Eye, EyeOff } from "lucide-react"
+import { AdminAuth } from "@/lib/admin-auth"
 
 export default function AdminLoginPage() {
   const [pin, setPin] = useState("")
@@ -27,9 +28,8 @@ export default function AdminLoginPage() {
     await new Promise(resolve => setTimeout(resolve, 1000))
 
     if (pin === ADMIN_PIN) {
-      // Salva session (semplice localStorage per ora)
-      localStorage.setItem("admin_session", "authenticated")
-      localStorage.setItem("admin_login_time", new Date().toISOString())
+      // Usa la utility per il login
+      AdminAuth.login()
       
       // Redirect a dashboard
       router.push("/admin/dashboard")

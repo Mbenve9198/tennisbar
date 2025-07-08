@@ -27,6 +27,7 @@ import {
   LogOut,
   Eye
 } from "lucide-react"
+import { AdminAuth } from "@/lib/admin-auth"
 
 // Import menu data
 import {
@@ -89,8 +90,7 @@ export default function AdminDashboard() {
   const [caffetteria, setCaffetteria] = useState(initialCaffetteria)
 
   useEffect(() => {
-    const adminAuth = localStorage.getItem("adminAuth")
-    if (adminAuth === "true") {
+    if (AdminAuth.isAuthenticated()) {
       setIsAuthenticated(true)
       loadMenuData()
     } else {
@@ -141,8 +141,7 @@ export default function AdminDashboard() {
   }
 
   const handleLogout = () => {
-    localStorage.removeItem("adminAuth")
-    localStorage.removeItem("adminUser")
+    AdminAuth.logout()
     router.push("/admin")
   }
 
