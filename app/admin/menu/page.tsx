@@ -25,14 +25,20 @@ import {
   Clock,
   Star
 } from "lucide-react"
+import { AdminAuth } from "@/lib/admin-auth"
 
 interface MenuItem {
   _id: string
   name: string
   description?: string
-  price: number
+  price?: number
   beer_price_30cl?: number
   beer_price_50cl?: number
+  pricing?: {
+    regular?: number
+    small?: number
+    large?: number
+  }
   category: string
   subcategory?: string
   tags: string[]
@@ -71,8 +77,7 @@ export default function AdminMenuPage() {
 
   // Check authentication
   useEffect(() => {
-    const isAuthenticated = localStorage.getItem("admin_session")
-    if (!isAuthenticated) {
+    if (!AdminAuth.isAuthenticated()) {
       router.push("/admin")
       return
     }
@@ -86,54 +91,51 @@ export default function AdminMenuPage() {
       const response = await fetch("/api/menu")
       const data = await response.json()
       
-      if (data.success) {
+      if (data.success && Array.isArray(data.data)) {
         setMenuData(data.data)
         
-        // Flatten all items
+        // Flatten all items from the new API structure
         const items: MenuItem[] = []
         
-        // Hamburger
-        if (data.data.hamburger) {
-          items.push(...data.data.hamburger.map((item: any) => ({
-            ...item,
-            category: "hamburger"
-          })))
-        }
+        data.data.forEach((category: any) => {
+          // Map category section to our expected format
+          let categoryType = "food" // default
+          
+          if (category.section === "hamburger" || category.name?.toLowerCase().includes("hamburger")) {
+            categoryType = "hamburger"
+          } else if (category.section === "drinks" || category.name?.toLowerCase().includes("drink") || category.name?.toLowerCase().includes("bevand")) {
+            categoryType = "drinks"
+          } else if (category.section === "desserts" || category.name?.toLowerCase().includes("dolc") || category.name?.toLowerCase().includes("dessert")) {
+            categoryType = "desserts"
+          } else if (category.section === "food") {
+            categoryType = "food"
+          }
+
+          // Add direct category items
+          if (category.items && Array.isArray(category.items)) {
+            items.push(...category.items.map((item: any) => ({
+              ...item,
+              category: categoryType,
+              tags: item.tags || []
+            })))
+          }
+
+          // Add items from subcategories
+          if (category.subcategories && Array.isArray(category.subcategories)) {
+            category.subcategories.forEach((subcategory: any) => {
+              if (subcategory.items && Array.isArray(subcategory.items)) {
+                items.push(...subcategory.items.map((item: any) => ({
+                  ...item,
+                  category: categoryType,
+                  subcategory: subcategory.name,
+                  tags: item.tags || []
+                })))
+              }
+            })
+          }
+        })
         
-        // Food 
-        if (data.data.food) {
-          items.push(...data.data.food.map((item: any) => ({
-            ...item,
-            category: "food"
-          })))
-        }
-        
-        // Drinks
-        if (data.data.drinks?.items) {
-          items.push(...data.data.drinks.items.map((item: any) => ({
-            ...item,
-            category: "drinks"
-          })))
-        }
-        if (data.data.drinks?.subcategories) {
-          Object.entries(data.data.drinks.subcategories).forEach(([subcat, subItems]: [string, any]) => {
-            if (Array.isArray(subItems)) {
-              items.push(...subItems.map((item: any) => ({
-                ...item,
-                category: "drinks",
-                subcategory: subcat
-              })))
-            }
-          })
-        }
-        
-        // Desserts
-        if (data.data.desserts) {
-          items.push(...data.data.desserts.map((item: any) => ({
-            ...item,
-            category: "desserts"
-          })))
-        }
+        console.log(`Loaded ${items.length} menu items for admin:`, items)
         
         setAllItems(items)
         setFilteredItems(items)
@@ -146,6 +148,10 @@ export default function AdminMenuPage() {
             cat.count = items.filter(item => item.category === cat.id).length
           }
         })
+      } else {
+        console.error("Invalid API response structure:", data)
+        setAllItems([])
+        setFilteredItems([])
       }
     } catch (error) {
       console.error("Error loading menu data:", error)
@@ -177,9 +183,22 @@ export default function AdminMenuPage() {
   }, [allItems, selectedCategory, searchQuery])
 
   const getItemPrice = (item: MenuItem) => {
+    // Check for beer pricing structure
     if (item.beer_price_30cl && item.beer_price_50cl) {
       return `€${item.beer_price_30cl}/${item.beer_price_50cl}`
     }
+    
+    // Check for pricing object structure (new API format)
+    if (item.pricing) {
+      if (typeof item.pricing === 'object' && item.pricing.small && item.pricing.large) {
+        return `€${item.pricing.small}/${item.pricing.large}`
+      }
+      if (typeof item.pricing === 'object' && item.pricing.regular) {
+        return `€${item.pricing.regular}`
+      }
+    }
+    
+    // Fallback to simple price
     return `€${item.price?.toFixed(2) || "N/A"}`
   }
 
