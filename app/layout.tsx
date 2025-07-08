@@ -10,9 +10,17 @@ export const metadata: Metadata = {
   title: "Tennis Sports Bar & Grill - Menu Digitale",
   description: "Menu digitale moderno per Tennis Sports Bar & Grill - Hamburger, Birre, Cocktail e molto altro!",
   manifest: "/manifest.json",
-  themeColor: "#ea580c",
-  viewport: "width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no",
-    generator: 'v0.dev'
+  generator: 'v0.dev'
+}
+
+export function generateViewport() {
+  return {
+    themeColor: "#ea580c",
+    width: "device-width",
+    initialScale: 1,
+    maximumScale: 1,
+    userScalable: false,
+  }
 }
 
 export default function RootLayout({

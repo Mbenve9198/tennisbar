@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useMemo } from "react"
 import { motion } from "framer-motion"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -13,6 +13,8 @@ import {
   filterItemsByTag,
   type MenuItem 
 } from "@/hooks/use-menu-data"
+import { MenuAppSkeleton } from "@/components/ui/skeleton"
+import { SearchFilter } from "@/components/ui/search-filter"
 
 const menuSections = [
   { id: "home", label: "Home", emoji: "🏠" },
@@ -26,20 +28,39 @@ const menuSections = [
 export default function TennisMenuApp() {
   const [activeSection, setActiveSection] = useState("home")
   const [beerSize, setBeerSize] = useState<"small" | "pinta">("pinta")
+  const [filteredItems, setFilteredItems] = useState<MenuItem[]>([])
+  const [showSearch, setShowSearch] = useState(false)
 
   // Carica dati del menu dal database
   const { menuData, loading, error } = useMenuData()
 
-  // Stato di caricamento
+  // Raccogli tutti gli items per la ricerca
+  const allMenuItems = useMemo(() => {
+    if (!menuData) return []
+    
+    const items: MenuItem[] = []
+    
+    // Items diretti dalle categorie
+    Object.values(menuData).forEach(category => {
+      if (category?.items) {
+        items.push(...category.items)
+      }
+      // Items dalle sottocategorie
+      if (category?.subcategories) {
+        category.subcategories.forEach((sub: any) => {
+          if (sub.items) {
+            items.push(...sub.items)
+          }
+        })
+      }
+    })
+    
+    return items
+  }, [menuData])
+
+  // Stato di caricamento con skeleton
   if (loading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-green-50 via-white to-emerald-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 flex items-center justify-center">
-        <div className="text-center">
-          <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4 text-gray-600" />
-          <p className="text-gray-600 dark:text-gray-300">Caricamento menu...</p>
-        </div>
-      </div>
-    )
+    return <MenuAppSkeleton />
   }
 
   // Gestione errori
@@ -114,23 +135,24 @@ export default function TennisMenuApp() {
             )}
             <div className="flex justify-between items-center">
               {showBeerSizes ? (
-                <div className="flex gap-2">
-                  <Button
-                    size="sm"
-                    variant={beerSize === "small" ? "default" : "outline"}
-                    onClick={() => setBeerSize("small")}
-                    className="text-xs"
-                  >
-                    Piccola: {formatPrice(item.pricing, "small")}
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant={beerSize === "pinta" ? "default" : "outline"}
-                    onClick={() => setBeerSize("pinta")}
-                    className="text-xs"
-                  >
-                    Pinta: {formatPrice(item.pricing, "pinta")}
-                  </Button>
+                <div className="space-y-2 w-full">
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="font-medium">Scegli la tua misura:</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-3 text-center">
+                      <p className="text-xs text-gray-600 dark:text-gray-400 mb-1">Piccola (30cl)</p>
+                      <p className="text-lg font-bold text-gray-800 dark:text-gray-200">
+                        {formatPrice(item.pricing, "small")}
+                      </p>
+                    </div>
+                    <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-3 text-center">
+                      <p className="text-xs text-gray-600 dark:text-gray-400 mb-1">Pinta (50cl)</p>
+                      <p className="text-lg font-bold text-gray-800 dark:text-gray-200">
+                        {formatPrice(item.pricing, "pinta")}
+                      </p>
+                    </div>
+                  </div>
                 </div>
               ) : (
                 <span className="text-2xl font-bold text-gray-700 dark:text-gray-300">
@@ -184,6 +206,14 @@ export default function TennisMenuApp() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 via-white to-emerald-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
+      {/* Search & Filter Bar */}
+      {showSearch && (
+        <SearchFilter
+          allItems={allMenuItems}
+          onFilteredItemsChange={setFilteredItems}
+        />
+      )}
+
       {/* Main Content */}
       <main className="container mx-auto px-4 py-6 pb-24">
         {/* Hero Section */}
@@ -223,23 +253,57 @@ export default function TennisMenuApp() {
                 <Button
                   size="lg"
                   className="bg-white text-gray-800 hover:bg-gray-100 font-bold"
-                  onClick={() => scrollToSection("hamburger")}
+                  onClick={() => setShowSearch(!showSearch)}
                 >
-                  🍔 Scopri i Burger
+                  🔍 {showSearch ? 'Chiudi Ricerca' : 'Cerca nel Menu'}
                 </Button>
                 <Button
                   size="lg"
                   variant="outline"
                   className="border-white text-white hover:bg-white hover:text-gray-800 font-bold bg-transparent"
-                  onClick={() => scrollToSection("drinks")}
+                  onClick={() => scrollToSection("hamburger")}
                 >
-                  🍺 Vedi le Birre
+                  🍔 Scopri i Burger
                 </Button>
               </div>
             </div>
           </div>
         </motion.section>
 
+        {/* Risultati Ricerca */}
+        {showSearch && (
+          <motion.section
+            variants={containerVariants}
+            initial="hidden"
+            animate="visible"
+            className="mb-12"
+          >
+            {filteredItems.length > 0 ? (
+              <>
+                <SectionHeader title={`Risultati Ricerca (${filteredItems.length})`} emoji="🔍" />
+                <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+                  {filteredItems.map((item) => (
+                    <MenuCard key={item._id} item={item} />
+                  ))}
+                </div>
+              </>
+            ) : (
+              <div className="text-center py-12">
+                <p className="text-2xl mb-4">🔍</p>
+                <h3 className="text-xl font-bold text-gray-700 dark:text-gray-300 mb-2">
+                  Nessun risultato trovato
+                </h3>
+                <p className="text-gray-600 dark:text-gray-400">
+                  Prova a modificare i filtri o il termine di ricerca
+                </p>
+              </div>
+            )}
+          </motion.section>
+        )}
+
+        {/* Sezioni Menu Normali (nascoste durante ricerca attiva) */}
+        {!showSearch && (
+          <>
         {/* Sezione Hamburger */}
         {menuData.hamburger && (
           <motion.section
@@ -381,6 +445,8 @@ export default function TennisMenuApp() {
             </Card>
           </div>
         </motion.section>
+          </>
+        )}
       </main>
 
       {/* Navigazione mobile sticky */}
