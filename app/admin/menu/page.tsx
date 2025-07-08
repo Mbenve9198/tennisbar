@@ -11,39 +11,43 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { 
   Search,
   Plus,
-  Edit3,
-  Trash2,
   Filter,
   ArrowLeft,
   MoreVertical,
-  Eye,
-  EyeOff,
   Home,
   Menu,
   Settings,
-  Tag,
-  DollarSign,
-  Clock,
-  Star
+  Tag
 } from "lucide-react"
 import { AdminAuth } from "@/lib/admin-auth"
+import MenuItemEditor from "@/components/admin/menu-item-editor"
+
+// Interfaccia aggiornata per corrispondere al modello
+interface IPricing {
+  type: 'simple' | 'multiple' | 'range' | 'custom'
+  simple?: string
+  multiple?: {
+    small?: string
+    pinta?: string
+    [key: string]: string | undefined
+  }
+  range?: string
+  custom?: string
+}
 
 interface MenuItem {
   _id: string
   name: string
   description?: string
-  price?: number
-  beer_price_30cl?: number
-  beer_price_50cl?: number
-  pricing?: {
-    regular?: number
-    small?: number
-    large?: number
-  }
-  category: string
-  subcategory?: string
+  categoryId: string
+  subcategoryId?: string
+  pricing: IPricing
+  type?: string
   tags: string[]
-  available: boolean
+  order: number
+  isActive: boolean
+  createdAt?: Date
+  updatedAt?: Date
 }
 
 interface MenuData {
@@ -66,6 +70,7 @@ export default function AdminMenuPage() {
   const [searchQuery, setSearchQuery] = useState("")
   const [selectedCategory, setSelectedCategory] = useState("all")
   const [showFilters, setShowFilters] = useState(false)
+  const [editingItem, setEditingItem] = useState<MenuItem | null>(null)
   const router = useRouter()
 
   const categories = [
@@ -95,29 +100,19 @@ export default function AdminMenuPage() {
       if (data.success && Array.isArray(data.data)) {
         setMenuData(data.data)
         
-        // Flatten all items from the new API structure
+        // Flatten all items from the API structure
         const items: MenuItem[] = []
         
         data.data.forEach((category: any) => {
-          // Map category section to our expected format
-          let categoryType = "food" // default
-          
-          if (category.section === "hamburger" || category.name?.toLowerCase().includes("hamburger")) {
-            categoryType = "hamburger"
-          } else if (category.section === "drinks" || category.name?.toLowerCase().includes("drink") || category.name?.toLowerCase().includes("bevand")) {
-            categoryType = "drinks"
-          } else if (category.section === "desserts" || category.name?.toLowerCase().includes("dolc") || category.name?.toLowerCase().includes("dessert")) {
-            categoryType = "desserts"
-          } else if (category.section === "food") {
-            categoryType = "food"
-          }
-
           // Add direct category items
           if (category.items && Array.isArray(category.items)) {
             items.push(...category.items.map((item: any) => ({
               ...item,
-              category: categoryType,
-              tags: item.tags || []
+              categoryId: category._id,
+              tags: item.tags || [],
+              pricing: item.pricing || { type: 'simple', simple: '€0,00' },
+              order: item.order || 0,
+              isActive: item.isActive !== undefined ? item.isActive : true
             })))
           }
 
@@ -127,9 +122,12 @@ export default function AdminMenuPage() {
               if (subcategory.items && Array.isArray(subcategory.items)) {
                 items.push(...subcategory.items.map((item: any) => ({
                   ...item,
-                  category: categoryType,
-                  subcategory: subcategory.name,
-                  tags: item.tags || []
+                  categoryId: category._id,
+                  subcategoryId: subcategory._id,
+                  tags: item.tags || [],
+                  pricing: item.pricing || { type: 'simple', simple: '€0,00' },
+                  order: item.order || 0,
+                  isActive: item.isActive !== undefined ? item.isActive : true
                 })))
               }
             })
@@ -146,7 +144,25 @@ export default function AdminMenuPage() {
           if (cat.id === "all") {
             cat.count = items.length
           } else {
-            cat.count = items.filter(item => item.category === cat.id).length
+            // Count by section since we need to map back
+            const sectionMap: {[key: string]: string} = {
+              "hamburger": "hamburger",
+              "food": "food", 
+              "drinks": "drinks",
+              "desserts": "desserts"
+            }
+            
+            cat.count = data.data.filter((apiCategory: any) => 
+              apiCategory.section === sectionMap[cat.id]
+            ).reduce((total: number, apiCategory: any) => {
+              let categoryItemCount = (apiCategory.items || []).length
+              if (apiCategory.subcategories) {
+                categoryItemCount += apiCategory.subcategories.reduce((subTotal: number, sub: any) => 
+                  subTotal + (sub.items || []).length, 0
+                )
+              }
+              return total + categoryItemCount
+            }, 0)
           }
         })
       } else {
@@ -165,9 +181,19 @@ export default function AdminMenuPage() {
   useEffect(() => {
     let filtered = allItems
 
-    // Category filter
+    // Category filter - needs to be mapped from section
     if (selectedCategory !== "all") {
-      filtered = filtered.filter(item => item.category === selectedCategory)
+      // We need to find items that belong to categories with the right section
+      const categoryData = menuData as any
+      if (categoryData) {
+        const relevantCategoryIds = categoryData
+          .filter((cat: any) => cat.section === selectedCategory)
+          .map((cat: any) => cat._id)
+        
+        filtered = filtered.filter(item => 
+          relevantCategoryIds.includes(item.categoryId)
+        )
+      }
     }
 
     // Search filter
@@ -176,85 +202,27 @@ export default function AdminMenuPage() {
       filtered = filtered.filter(item => 
         item.name.toLowerCase().includes(query) ||
         item.description?.toLowerCase().includes(query) ||
+        item.type?.toLowerCase().includes(query) ||
         item.tags?.some(tag => tag.toLowerCase().includes(query))
       )
     }
 
     setFilteredItems(filtered)
-  }, [allItems, selectedCategory, searchQuery])
+  }, [allItems, selectedCategory, searchQuery, menuData])
 
-  const getItemPrice = (item: MenuItem) => {
-    // Check for beer pricing structure
-    if (item.beer_price_30cl && item.beer_price_50cl) {
-      return `€${item.beer_price_30cl}/${item.beer_price_50cl}`
-    }
-    
-    // Check for pricing object structure (new API format)
-    if (item.pricing) {
-      if (typeof item.pricing === 'object' && item.pricing.small && item.pricing.large) {
-        return `€${item.pricing.small}/${item.pricing.large}`
-      }
-      if (typeof item.pricing === 'object' && item.pricing.regular) {
-        return `€${item.pricing.regular}`
-      }
-    }
-    
-    // Fallback to simple price
-    return `€${item.price?.toFixed(2) || "N/A"}`
+  const handleItemSave = (updatedItem: MenuItem) => {
+    const updatedItems = allItems.map(item => 
+      item._id === updatedItem._id ? updatedItem : item
+    )
+    setAllItems(updatedItems)
+    setEditingItem(null)
   }
 
-  const getItemTags = (item: MenuItem) => {
-    const tags = []
-    if (item.tags?.includes("popular")) tags.push({ label: "Popolare", color: "bg-orange-100 text-orange-700" })
-    if (item.tags?.includes("special")) tags.push({ label: "Special", color: "bg-purple-100 text-purple-700" })
-    if (item.tags?.includes("vegetarian")) tags.push({ label: "Vegetariano", color: "bg-green-100 text-green-700" })
-    if (!item.available) tags.push({ label: "Non Disponibile", color: "bg-red-100 text-red-700" })
-    return tags
+  const handleItemCancel = () => {
+    setEditingItem(null)
   }
 
-  // Action handlers
-  const handleEditItem = (item: MenuItem) => {
-    // For now, show an alert with item details - can be improved with inline editing
-    const newName = prompt("Modifica nome:", item.name)
-    if (newName && newName !== item.name) {
-      console.log(`Updating item ${item._id} name from "${item.name}" to "${newName}"`)
-      // TODO: Implement API call to update item
-      alert("Funzione di modifica in sviluppo!")
-    }
-  }
-
-  const handleToggleAvailability = async (item: MenuItem) => {
-    const newAvailability = !item.available
-    console.log(`Toggling availability for ${item.name}: ${item.available} -> ${newAvailability}`)
-    
-    try {
-      const response = await fetch(`/api/menu/${item._id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ available: newAvailability })
-      })
-
-      const data = await response.json()
-      
-      if (data.success) {
-        // Update local state
-        const updatedItems = allItems.map(i => 
-          i._id === item._id ? { ...i, available: newAvailability } : i
-        )
-        setAllItems(updatedItems)
-        
-        alert(`Item "${item.name}" ${newAvailability ? 'reso visibile' : 'nascosto'}!`)
-      } else {
-        throw new Error(data.error || 'Update failed')
-      }
-      
-    } catch (error) {
-      console.error("Error toggling availability:", error)
-      alert("Errore durante l'aggiornamento: " + (error as Error).message)
-    }
-  }
-
-  const handleDeleteItem = async (item: MenuItem) => {
+  const handleItemDelete = async (item: MenuItem) => {
     if (!confirm(`Sei sicuro di voler eliminare "${item.name}"?\n\nQuesta azione non può essere annullata.`)) {
       return
     }
@@ -336,57 +304,59 @@ export default function AdminMenuPage() {
       </div>
 
       <div className="p-4 space-y-4">
-        {/* Search & Filters */}
+        {/* Search and Filters */}
         <Card>
-          <CardContent className="p-4 space-y-4">
-            {/* Search Bar */}
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-              <Input
-                placeholder="Cerca per nome, descrizione o tag..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10 pr-12"
-              />
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setShowFilters(!showFilters)}
-                className="absolute right-2 top-1/2 transform -translate-y-1/2 p-1"
-              >
-                <Filter className="w-4 h-4" />
-              </Button>
-            </div>
-
-            {/* Category Filters */}
-            <AnimatePresence>
-              {showFilters && (
-                <motion.div
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: "auto" }}
-                  exit={{ opacity: 0, height: 0 }}
-                  className="space-y-3"
+          <CardContent className="p-4">
+            <div className="space-y-3">
+              <div className="flex gap-2">
+                <div className="relative flex-1">
+                  <Search className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                  <Input
+                    placeholder="Cerca per nome, descrizione, tags..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="pl-10"
+                  />
+                </div>
+                <Button
+                  variant="outline"
+                  onClick={() => setShowFilters(!showFilters)}
+                  className="flex-shrink-0"
                 >
-                  <div className="flex gap-2 overflow-x-auto pb-2">
-                    {categories.map((category) => (
-                      <Button
-                        key={category.id}
-                        variant={selectedCategory === category.id ? "default" : "outline"}
-                        size="sm"
-                        onClick={() => setSelectedCategory(category.id)}
-                        className="flex-shrink-0"
-                      >
-                        <span className="mr-2">{category.emoji}</span>
-                        {category.name}
-                        <Badge variant="secondary" className="ml-2 text-xs">
-                          {category.count}
-                        </Badge>
-                      </Button>
-                    ))}
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
+                  <Filter className="w-4 h-4 mr-2" />
+                  Filtri
+                </Button>
+              </div>
+
+              <AnimatePresence>
+                {showFilters && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: "auto" }}
+                    exit={{ opacity: 0, height: 0 }}
+                    className="space-y-3"
+                  >
+                    <div className="flex gap-2 overflow-x-auto pb-2">
+                      {categories.map((category) => (
+                        <Button
+                          key={category.id}
+                          variant={selectedCategory === category.id ? "default" : "outline"}
+                          size="sm"
+                          onClick={() => setSelectedCategory(category.id)}
+                          className="flex-shrink-0"
+                        >
+                          <span className="mr-2">{category.emoji}</span>
+                          {category.name}
+                          <Badge variant="secondary" className="ml-2 text-xs">
+                            {category.count}
+                          </Badge>
+                        </Button>
+                      ))}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
           </CardContent>
         </Card>
 
@@ -401,116 +371,32 @@ export default function AdminMenuPage() {
                 exit={{ opacity: 0, y: -20 }}
                 transition={{ duration: 0.2, delay: index * 0.05 }}
               >
-                <Card className="border-l-4 border-l-slate-500">
-                  <CardContent className="p-4">
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1 min-w-0">
-                        {/* Item Header */}
-                        <div className="flex items-start gap-3 mb-2">
-                          <div className="flex-1">
-                            <h3 className="font-semibold text-gray-900 truncate">
-                              {item.name}
-                            </h3>
-                            {item.description && (
-                              <p className="text-sm text-gray-600 line-clamp-2 mt-1">
-                                {item.description}
-                              </p>
-                            )}
-                          </div>
-                          <div className="text-right flex-shrink-0">
-                            <p className="font-bold text-lg text-gray-900">
-                              {getItemPrice(item)}
-                            </p>
-                            {item.subcategory && (
-                              <p className="text-xs text-gray-500 capitalize">
-                                {item.subcategory}
-                              </p>
-                            )}
-                          </div>
-                        </div>
-
-                        {/* Tags */}
-                        {getItemTags(item).length > 0 && (
-                          <div className="flex gap-1 flex-wrap mb-3">
-                            {getItemTags(item).map((tag, idx) => (
-                              <Badge
-                                key={idx}
-                                variant="secondary"
-                                className={`text-xs ${tag.color}`}
-                              >
-                                {tag.label}
-                              </Badge>
-                            ))}
-                          </div>
-                        )}
-
-                        {/* Actions */}
-                        <div className="flex gap-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleEditItem(item)}
-                            className="flex-1"
-                          >
-                            <Edit3 className="w-4 h-4 mr-2" />
-                            Modifica
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleToggleAvailability(item)}
-                            className={item.available ? "text-green-600" : "text-red-600"}
-                          >
-                            {item.available ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleDeleteItem(item)}
-                            className="text-red-600 hover:text-red-700"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
+                <MenuItemEditor
+                  item={item}
+                  onSave={handleItemSave}
+                  onCancel={handleItemCancel}
+                  onDelete={handleItemDelete}
+                  isEditing={editingItem?._id === item._id}
+                />
               </motion.div>
             ))}
           </AnimatePresence>
-        </div>
 
-        {/* Empty State */}
-        {filteredItems.length === 0 && !loading && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="text-center py-12"
-          >
-            <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <Search className="w-8 h-8 text-gray-400" />
+          {filteredItems.length === 0 && (
+            <div className="text-center py-8">
+              <p className="text-gray-500">Nessun item trovato</p>
+              {searchQuery && (
+                <Button
+                  variant="outline"
+                  onClick={() => setSearchQuery("")}
+                  className="mt-2"
+                >
+                  Cancella filtri
+                </Button>
+              )}
             </div>
-            <h3 className="text-lg font-medium text-gray-900 mb-2">Nessun risultato</h3>
-            <p className="text-gray-500 mb-4">
-              {searchQuery ? 
-                `Nessun item trovato per "${searchQuery}"` : 
-                "Nessun item in questa categoria"
-              }
-            </p>
-            {searchQuery && (
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setSearchQuery("")
-                  setSelectedCategory("all")
-                }}
-              >
-                Pulisci filtri
-              </Button>
-            )}
-          </motion.div>
-        )}
+          )}
+        </div>
       </div>
 
       {/* Bottom Navigation */}

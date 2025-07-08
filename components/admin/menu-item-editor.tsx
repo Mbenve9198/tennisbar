@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -19,22 +19,46 @@ import {
   EyeOff
 } from "lucide-react"
 
+// Interfaccia per il pricing flessibile
+interface IPricing {
+  type: 'simple' | 'multiple' | 'range' | 'custom'
+  simple?: string
+  multiple?: {
+    small?: string
+    pinta?: string
+    [key: string]: string | undefined
+  }
+  range?: string
+  custom?: string
+}
+
+// Interfaccia MenuItem aggiornata per corrispondere al modello
 interface MenuItem {
   _id: string
   name: string
   description?: string
-  price?: number
-  beer_price_30cl?: number
-  beer_price_50cl?: number
-  pricing?: {
-    regular?: number
-    small?: number
-    large?: number
-  }
-  category: string
-  subcategory?: string
+  categoryId: string
+  subcategoryId?: string
+  pricing: IPricing
+  type?: string
   tags: string[]
-  available: boolean
+  order: number
+  isActive: boolean
+  createdAt?: Date
+  updatedAt?: Date
+}
+
+interface Category {
+  _id: string
+  name: string
+  emoji: string
+  section: string
+}
+
+interface Subcategory {
+  _id: string
+  name: string
+  categoryId: string
 }
 
 interface MenuItemEditorProps {
@@ -50,6 +74,13 @@ const AVAILABLE_TAGS = [
   "spicy", "new", "seasonal", "signature", "recommended"
 ]
 
+const PRICING_TYPES = [
+  { value: 'simple', label: 'Prezzo Semplice' },
+  { value: 'multiple', label: 'Prezzi Multipli' },
+  { value: 'range', label: 'Fascia di Prezzo' },
+  { value: 'custom', label: 'Prezzo Personalizzato' }
+]
+
 export default function MenuItemEditor({ 
   item, 
   onSave, 
@@ -58,20 +89,53 @@ export default function MenuItemEditor({
   isEditing = false 
 }: MenuItemEditorProps) {
   const [editing, setEditing] = useState(isEditing)
-  const [loading, setSaving] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [categories, setCategories] = useState<Category[]>([])
+  const [subcategories, setSubcategories] = useState<Subcategory[]>([])
+  const [filteredSubcategories, setFilteredSubcategories] = useState<Subcategory[]>([])
+  
   const [formData, setFormData] = useState({
     name: item.name,
     description: item.description || "",
-    price: item.price || 0,
-    beer_price_30cl: item.beer_price_30cl || 0,
-    beer_price_50cl: item.beer_price_50cl || 0,
-    category: item.category,
-    subcategory: item.subcategory || "",
+    categoryId: item.categoryId,
+    subcategoryId: item.subcategoryId || "",
+    pricing: item.pricing || { type: 'simple' as const, simple: '' },
+    type: item.type || "",
     tags: item.tags || [],
-    available: item.available
+    order: item.order || 0,
+    isActive: item.isActive !== undefined ? item.isActive : true
   })
 
   const [errors, setErrors] = useState<{[key: string]: string}>({})
+
+  // Carica categorie e sottocategorie all'inizializzazione
+  useEffect(() => {
+    const fetchCategoriesAndSubcategories = async () => {
+      try {
+        const response = await fetch('/api/categories')
+        const data = await response.json()
+        
+        if (data.success) {
+          setCategories(data.data.categories)
+          setSubcategories(data.data.subcategories)
+        }
+      } catch (error) {
+        console.error("Errore nel caricamento di categorie e sottocategorie:", error)
+      }
+    }
+
+    fetchCategoriesAndSubcategories()
+  }, [])
+
+  // Filtra sottocategorie in base alla categoria selezionata
+  useEffect(() => {
+    if (formData.categoryId) {
+      const filtered = subcategories.filter(sub => sub.categoryId === formData.categoryId)
+      setFilteredSubcategories(filtered)
+    } else {
+      setFilteredSubcategories([])
+    }
+  }, [formData.categoryId, subcategories])
 
   const validateForm = (): boolean => {
     const newErrors: {[key: string]: string} = {}
@@ -80,8 +144,32 @@ export default function MenuItemEditor({
       newErrors.name = "Nome richiesto"
     }
     
-    if (formData.price <= 0 && !formData.beer_price_30cl && !formData.beer_price_50cl) {
-      newErrors.price = "Almeno un prezzo deve essere specificato"
+    if (!formData.categoryId) {
+      newErrors.categoryId = "Categoria richiesta"
+    }
+
+    // Validazione pricing
+    switch (formData.pricing.type) {
+      case 'simple':
+        if (!formData.pricing.simple?.trim()) {
+          newErrors.pricing = "Prezzo semplice richiesto"
+        }
+        break
+      case 'multiple':
+        if (!formData.pricing.multiple?.pinta?.trim()) {
+          newErrors.pricing = "Almeno il prezzo pinta è richiesto"
+        }
+        break
+      case 'range':
+        if (!formData.pricing.range?.trim()) {
+          newErrors.pricing = "Fascia di prezzo richiesta"
+        }
+        break
+      case 'custom':
+        if (!formData.pricing.custom?.trim()) {
+          newErrors.pricing = "Prezzo personalizzato richiesto"
+        }
+        break
     }
 
     setErrors(newErrors)
@@ -91,7 +179,7 @@ export default function MenuItemEditor({
   const handleSave = async () => {
     if (!validateForm()) return
 
-    setSaving(true)
+    setLoading(true)
     try {
       const response = await fetch(`/api/menu/${item._id}`, {
         method: 'PATCH',
@@ -111,7 +199,7 @@ export default function MenuItemEditor({
       console.error("Error saving item:", error)
       alert("Errore durante il salvataggio: " + (error as Error).message)
     } finally {
-      setSaving(false)
+      setLoading(false)
     }
   }
 
@@ -119,13 +207,13 @@ export default function MenuItemEditor({
     setFormData({
       name: item.name,
       description: item.description || "",
-      price: item.price || 0,
-      beer_price_30cl: item.beer_price_30cl || 0,
-      beer_price_50cl: item.beer_price_50cl || 0,
-      category: item.category,
-      subcategory: item.subcategory || "",
+      categoryId: item.categoryId,
+      subcategoryId: item.subcategoryId || "",
+      pricing: item.pricing || { type: 'simple' as const, simple: '' },
+      type: item.type || "",
       tags: item.tags || [],
-      available: item.available
+      order: item.order || 0,
+      isActive: item.isActive !== undefined ? item.isActive : true
     })
     setErrors({})
     setEditing(false)
@@ -148,118 +236,256 @@ export default function MenuItemEditor({
     }))
   }
 
-  const handleToggleAvailability = async () => {
-    const newAvailability = !item.available
+  const handlePricingChange = (field: string, value: string | object) => {
+    setFormData(prev => ({
+      ...prev,
+      pricing: {
+        ...prev.pricing,
+        [field]: value
+      }
+    }))
+  }
+
+  const handlePricingTypeChange = (newType: 'simple' | 'multiple' | 'range' | 'custom') => {
+    setFormData(prev => ({
+      ...prev,
+      pricing: {
+        type: newType,
+        // Reset all other pricing fields
+        simple: '',
+        multiple: { small: '', pinta: '' },
+        range: '',
+        custom: ''
+      }
+    }))
+  }
+
+  const handleToggleActive = async () => {
+    const newActiveStatus = !item.isActive
     
     try {
       const response = await fetch(`/api/menu/${item._id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ available: newAvailability })
+        body: JSON.stringify({ isActive: newActiveStatus })
       })
 
       const data = await response.json()
       
       if (data.success) {
-        onSave({ ...item, available: newAvailability })
+        onSave({ ...item, isActive: newActiveStatus })
       } else {
         throw new Error(data.error || 'Update failed')
       }
     } catch (error) {
-      console.error("Error toggling availability:", error)
+      console.error("Error toggling active status:", error)
       alert("Errore durante l'aggiornamento: " + (error as Error).message)
     }
+  }
+
+  const formatDisplayPrice = (pricing: IPricing): string => {
+    switch (pricing.type) {
+      case 'simple':
+        return pricing.simple || 'N/A'
+      case 'multiple':
+        const small = pricing.multiple?.small
+        const pinta = pricing.multiple?.pinta
+        if (small && pinta) return `${small}/${pinta}`
+        if (pinta) return pinta
+        return 'N/A'
+      case 'range':
+        return pricing.range || 'N/A'
+      case 'custom':
+        return pricing.custom || 'N/A'
+      default:
+        return 'N/A'
+    }
+  }
+
+  const getCategoryName = (categoryId: string): string => {
+    const category = categories.find(cat => cat._id === categoryId)
+    return category ? `${category.emoji} ${category.name}` : 'Categoria non trovata'
+  }
+
+  const getSubcategoryName = (subcategoryId: string): string => {
+    const subcategory = subcategories.find(sub => sub._id === subcategoryId)
+    return subcategory ? subcategory.name : ''
   }
 
   if (editing) {
     return (
       <Card className="border-l-4 border-l-blue-500">
-        <CardContent className="p-4">
-          <div className="space-y-4">
-            {/* Nome */}
-            <div>
-              <Label htmlFor="name">Nome *</Label>
-              <Input
-                id="name"
-                value={formData.name}
-                onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
-                className={errors.name ? "border-red-500" : ""}
-              />
-              {errors.name && <p className="text-red-500 text-sm mt-1">{errors.name}</p>}
+        <CardContent className="p-6">
+          <div className="space-y-6">
+            {/* Info Base */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="name">Nome *</Label>
+                <Input
+                  id="name"
+                  value={formData.name}
+                  onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+                  className={errors.name ? "border-red-500" : ""}
+                />
+                {errors.name && <p className="text-red-500 text-sm mt-1">{errors.name}</p>}
+              </div>
+
+              <div>
+                <Label htmlFor="type">Tipo/Descrizione Breve</Label>
+                <Input
+                  id="type"
+                  value={formData.type}
+                  onChange={(e) => setFormData(prev => ({ ...prev, type: e.target.value }))}
+                  placeholder="es. Lager 5%, IPA 5,6%, etc."
+                />
+              </div>
             </div>
 
             {/* Descrizione */}
             <div>
-              <Label htmlFor="description">Descrizione</Label>
+              <Label htmlFor="description">Descrizione Dettagliata</Label>
               <Textarea
                 id="description"
                 value={formData.description}
                 onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
-                rows={2}
+                rows={3}
+                placeholder="Descrizione completa del prodotto..."
               />
             </div>
 
-            {/* Prezzi */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <Label htmlFor="price">Prezzo Normale (€)</Label>
-                <Input
-                  id="price"
-                  type="number"
-                  step="0.01"
-                  value={formData.price}
-                  onChange={(e) => setFormData(prev => ({ ...prev, price: parseFloat(e.target.value) || 0 }))}
-                  className={errors.price ? "border-red-500" : ""}
-                />
-              </div>
-              <div>
-                <Label htmlFor="beer_30">Birra 30cl (€)</Label>
-                <Input
-                  id="beer_30"
-                  type="number"
-                  step="0.01"
-                  value={formData.beer_price_30cl}
-                  onChange={(e) => setFormData(prev => ({ ...prev, beer_price_30cl: parseFloat(e.target.value) || 0 }))}
-                />
-              </div>
-              <div>
-                <Label htmlFor="beer_50">Birra 50cl (€)</Label>
-                <Input
-                  id="beer_50"
-                  type="number"
-                  step="0.01"
-                  value={formData.beer_price_50cl}
-                  onChange={(e) => setFormData(prev => ({ ...prev, beer_price_50cl: parseFloat(e.target.value) || 0 }))}
-                />
-              </div>
-            </div>
-            {errors.price && <p className="text-red-500 text-sm">{errors.price}</p>}
-
-            {/* Categoria */}
+            {/* Categoria e Sottocategoria */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <Label htmlFor="category">Categoria</Label>
-                <Select value={formData.category} onValueChange={(value) => setFormData(prev => ({ ...prev, category: value }))}>
+                <Label htmlFor="category">Categoria *</Label>
+                <Select 
+                  value={formData.categoryId} 
+                  onValueChange={(value) => {
+                    setFormData(prev => ({ ...prev, categoryId: value, subcategoryId: '' }))
+                  }}
+                >
+                  <SelectTrigger className={errors.categoryId ? "border-red-500" : ""}>
+                    <SelectValue placeholder="Seleziona categoria" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {categories.map((category) => (
+                      <SelectItem key={category._id} value={category._id}>
+                        {category.emoji} {category.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {errors.categoryId && <p className="text-red-500 text-sm mt-1">{errors.categoryId}</p>}
+              </div>
+
+              <div>
+                <Label htmlFor="subcategory">Sottocategoria</Label>
+                <Select 
+                  value={formData.subcategoryId} 
+                  onValueChange={(value) => setFormData(prev => ({ ...prev, subcategoryId: value }))}
+                  disabled={!formData.categoryId || filteredSubcategories.length === 0}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Seleziona sottocategoria" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">Nessuna sottocategoria</SelectItem>
+                    {filteredSubcategories.map((subcategory) => (
+                      <SelectItem key={subcategory._id} value={subcategory._id}>
+                        {subcategory.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            {/* Gestione Prezzi */}
+            <div className="space-y-4">
+              <div>
+                <Label>Tipo di Prezzo *</Label>
+                <Select 
+                  value={formData.pricing.type} 
+                  onValueChange={handlePricingTypeChange}
+                >
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="hamburger">Hamburger</SelectItem>
-                    <SelectItem value="food">Food</SelectItem>
-                    <SelectItem value="drinks">Drinks</SelectItem>
-                    <SelectItem value="desserts">Desserts</SelectItem>
+                    {PRICING_TYPES.map((type) => (
+                      <SelectItem key={type.value} value={type.value}>
+                        {type.label}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
+                {errors.pricing && <p className="text-red-500 text-sm mt-1">{errors.pricing}</p>}
               </div>
-              <div>
-                <Label htmlFor="subcategory">Sottocategoria</Label>
-                <Input
-                  id="subcategory"
-                  value={formData.subcategory}
-                  onChange={(e) => setFormData(prev => ({ ...prev, subcategory: e.target.value }))}
-                  placeholder="Opzionale"
-                />
-              </div>
+
+              {/* Campi pricing dinamici */}
+              {formData.pricing.type === 'simple' && (
+                <div>
+                  <Label htmlFor="simple-price">Prezzo Semplice *</Label>
+                  <Input
+                    id="simple-price"
+                    value={formData.pricing.simple || ''}
+                    onChange={(e) => handlePricingChange('simple', e.target.value)}
+                    placeholder="es. €12,90"
+                  />
+                </div>
+              )}
+
+              {formData.pricing.type === 'multiple' && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="small-price">Prezzo Small</Label>
+                    <Input
+                      id="small-price"
+                      value={formData.pricing.multiple?.small || ''}
+                      onChange={(e) => handlePricingChange('multiple', { 
+                        ...formData.pricing.multiple, 
+                        small: e.target.value 
+                      })}
+                      placeholder="es. €4,00"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="pinta-price">Prezzo Pinta *</Label>
+                    <Input
+                      id="pinta-price"
+                      value={formData.pricing.multiple?.pinta || ''}
+                      onChange={(e) => handlePricingChange('multiple', { 
+                        ...formData.pricing.multiple, 
+                        pinta: e.target.value 
+                      })}
+                      placeholder="es. €6,00"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {formData.pricing.type === 'range' && (
+                <div>
+                  <Label htmlFor="range-price">Fascia di Prezzo *</Label>
+                  <Input
+                    id="range-price"
+                    value={formData.pricing.range || ''}
+                    onChange={(e) => handlePricingChange('range', e.target.value)}
+                    placeholder="es. €5,00 / €8,00"
+                  />
+                </div>
+              )}
+
+              {formData.pricing.type === 'custom' && (
+                <div>
+                  <Label htmlFor="custom-price">Prezzo Personalizzato *</Label>
+                  <Input
+                    id="custom-price"
+                    value={formData.pricing.custom || ''}
+                    onChange={(e) => handlePricingChange('custom', e.target.value)}
+                    placeholder="es. Su richiesta, Variabile, etc."
+                  />
+                </div>
+              )}
             </div>
 
             {/* Tags */}
@@ -289,14 +515,27 @@ export default function MenuItemEditor({
               </Select>
             </div>
 
-            {/* Disponibilità */}
-            <div className="flex items-center space-x-2">
-              <Switch
-                id="available"
-                checked={formData.available}
-                onCheckedChange={(checked) => setFormData(prev => ({ ...prev, available: checked }))}
-              />
-              <Label htmlFor="available">Disponibile</Label>
+            {/* Impostazioni */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="order">Ordinamento</Label>
+                <Input
+                  id="order"
+                  type="number"
+                  value={formData.order}
+                  onChange={(e) => setFormData(prev => ({ ...prev, order: parseInt(e.target.value) || 0 }))}
+                  placeholder="0"
+                />
+              </div>
+
+              <div className="flex items-center space-x-2">
+                <Switch
+                  id="isActive"
+                  checked={formData.isActive}
+                  onCheckedChange={(checked) => setFormData(prev => ({ ...prev, isActive: checked }))}
+                />
+                <Label htmlFor="isActive">Attivo nel menu</Label>
+              </div>
             </div>
 
             {/* Azioni */}
@@ -327,7 +566,7 @@ export default function MenuItemEditor({
 
   // View mode
   return (
-    <Card className="border-l-4 border-l-slate-500">
+    <Card className={`border-l-4 ${item.isActive ? 'border-l-green-500' : 'border-l-gray-400'}`}>
       <CardContent className="p-4">
         <div className="flex items-start justify-between">
           <div className="flex-1 min-w-0">
@@ -335,43 +574,50 @@ export default function MenuItemEditor({
               <div className="flex-1">
                 <h3 className="font-semibold text-gray-900 truncate">
                   {item.name}
+                  {item.type && (
+                    <span className="ml-2 text-sm text-gray-500 font-normal">
+                      {item.type}
+                    </span>
+                  )}
                 </h3>
                 {item.description && (
                   <p className="text-sm text-gray-600 line-clamp-2 mt-1">
                     {item.description}
                   </p>
                 )}
+                <div className="flex items-center gap-2 mt-1 text-xs text-gray-500">
+                  <span>{getCategoryName(item.categoryId)}</span>
+                  {item.subcategoryId && (
+                    <>
+                      <span>→</span>
+                      <span>{getSubcategoryName(item.subcategoryId)}</span>
+                    </>
+                  )}
+                </div>
               </div>
               <div className="text-right flex-shrink-0">
                 <p className="font-bold text-lg text-gray-900">
-                  {item.beer_price_30cl && item.beer_price_50cl 
-                    ? `€${item.beer_price_30cl}/${item.beer_price_50cl}`
-                    : `€${item.price?.toFixed(2) || "N/A"}`
-                  }
+                  {formatDisplayPrice(item.pricing)}
                 </p>
-                {item.subcategory && (
-                  <p className="text-xs text-gray-500 capitalize">
-                    {item.subcategory}
-                  </p>
-                )}
+                <p className="text-xs text-gray-500">
+                  Ordine: {item.order}
+                </p>
               </div>
             </div>
 
-            {/* Tags */}
-            {item.tags && item.tags.length > 0 && (
-              <div className="flex gap-1 flex-wrap mb-3">
-                {item.tags.map((tag, idx) => (
-                  <Badge key={idx} variant="secondary" className="text-xs">
-                    {tag}
-                  </Badge>
-                ))}
-                {!item.available && (
-                  <Badge variant="destructive" className="text-xs">
-                    Non Disponibile
-                  </Badge>
-                )}
-              </div>
-            )}
+            {/* Tags e Status */}
+            <div className="flex gap-1 flex-wrap mb-3">
+              {item.tags && item.tags.length > 0 && item.tags.map((tag, idx) => (
+                <Badge key={idx} variant="secondary" className="text-xs">
+                  {tag}
+                </Badge>
+              ))}
+              {!item.isActive && (
+                <Badge variant="destructive" className="text-xs">
+                  Non Attivo
+                </Badge>
+              )}
+            </div>
 
             {/* Actions */}
             <div className="flex gap-2">
@@ -387,10 +633,10 @@ export default function MenuItemEditor({
               <Button
                 variant="outline"
                 size="sm"
-                onClick={handleToggleAvailability}
-                className={item.available ? "text-green-600" : "text-red-600"}
+                onClick={handleToggleActive}
+                className={item.isActive ? "text-green-600" : "text-gray-600"}
               >
-                {item.available ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+                {item.isActive ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
               </Button>
               {onDelete && (
                 <Button
