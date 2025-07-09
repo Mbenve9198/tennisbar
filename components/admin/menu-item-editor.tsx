@@ -380,15 +380,18 @@ export default function MenuItemEditor({
               <div>
                 <Label htmlFor="subcategory">Sottocategoria</Label>
                 <Select 
-                  value={formData.subcategoryId} 
-                  onValueChange={(value) => setFormData(prev => ({ ...prev, subcategoryId: value }))}
+                  value={formData.subcategoryId || "none"} 
+                  onValueChange={(value) => setFormData(prev => ({ 
+                    ...prev, 
+                    subcategoryId: value === "none" ? "" : value 
+                  }))}
                   disabled={!formData.categoryId || filteredSubcategories.length === 0}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Seleziona sottocategoria" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">Nessuna sottocategoria</SelectItem>
+                    <SelectItem value="none">Nessuna sottocategoria</SelectItem>
                     {filteredSubcategories.map((subcategory) => (
                       <SelectItem key={subcategory._id} value={subcategory._id}>
                         {subcategory.name}
