@@ -67,6 +67,7 @@ export default function AdminMenuPage() {
   const [allItems, setAllItems] = useState<MenuItem[]>([])
   const [filteredItems, setFilteredItems] = useState<MenuItem[]>([])
   const [loading, setLoading] = useState(true)
+  const [updating, setUpdating] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
   const [selectedCategory, setSelectedCategory] = useState("all")
   const [showFilters, setShowFilters] = useState(false)
@@ -210,12 +211,26 @@ export default function AdminMenuPage() {
     setFilteredItems(filtered)
   }, [allItems, selectedCategory, searchQuery, menuData])
 
-  const handleItemSave = (updatedItem: MenuItem) => {
-    const updatedItems = allItems.map(item => 
-      item._id === updatedItem._id ? updatedItem : item
-    )
-    setAllItems(updatedItems)
-    setEditingItem(null)
+  const handleItemSave = async (updatedItem: MenuItem) => {
+    try {
+      setUpdating(true)
+      
+      // Update local state immediately for better UX
+      const updatedItems = allItems.map(item => 
+        item._id === updatedItem._id ? updatedItem : item
+      )
+      setAllItems(updatedItems)
+      setEditingItem(null)
+      
+      // Reload data from server to ensure consistency
+      await loadMenuData()
+      
+      console.log('Item aggiornato:', updatedItem.name)
+    } catch (error) {
+      console.error('Errore durante l\'aggiornamento:', error)
+    } finally {
+      setUpdating(false)
+    }
   }
 
   const handleItemCancel = () => {
@@ -278,8 +293,16 @@ export default function AdminMenuPage() {
               <ArrowLeft className="w-4 h-4" />
             </Button>
             <div>
-              <h1 className="text-xl font-bold text-gray-900">Gestione Menu</h1>
-              <p className="text-sm text-gray-500">{filteredItems.length} items</p>
+              <h1 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+                Gestione Menu
+                {updating && (
+                  <div className="w-4 h-4 border-2 border-green-600 border-t-transparent rounded-full animate-spin"></div>
+                )}
+              </h1>
+              <p className="text-sm text-gray-500">
+                {filteredItems.length} items
+                {updating && <span className="text-green-600 ml-2">• Aggiornamento...</span>}
+              </p>
             </div>
           </div>
           <div className="flex gap-2">

@@ -279,7 +279,9 @@ export default function MenuItemEditor({
       const data = await response.json()
       
       if (data.success) {
-        onSave({ ...item, isActive: newActiveStatus })
+        // Aggiorna l'item con i nuovi dati e chiama onSave per aggiornare la lista
+        const updatedItem = { ...item, isActive: newActiveStatus }
+        onSave(updatedItem)
       } else {
         throw new Error(data.error || 'Update failed')
       }
