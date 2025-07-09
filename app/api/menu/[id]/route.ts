@@ -45,12 +45,18 @@ export async function PATCH(
     // Remove fields that shouldn't be updated directly
     const { _id, ...allowedUpdates } = updates
     
-    // Add update timestamp
-    allowedUpdates.updatedAt = new Date()
+    // Prepare update operations
+    const updateOps: any = { $set: { ...allowedUpdates, updatedAt: new Date() } }
+    
+    // Handle subcategoryId properly - if null, unset the field
+    if (allowedUpdates.subcategoryId === null) {
+      updateOps.$unset = { subcategoryId: 1 }
+      delete updateOps.$set.subcategoryId
+    }
 
     const updatedItem = await MenuItem.findByIdAndUpdate(
       params.id,
-      allowedUpdates,
+      updateOps,
       { new: true, runValidators: true }
     )
 

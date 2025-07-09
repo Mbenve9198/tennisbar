@@ -181,10 +181,16 @@ export default function MenuItemEditor({
 
     setLoading(true)
     try {
+      // Prepare data for API - convert empty strings to null for ObjectId fields
+      const dataToSend = {
+        ...formData,
+        subcategoryId: formData.subcategoryId === "" ? null : formData.subcategoryId
+      }
+
       const response = await fetch(`/api/menu/${item._id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData)
+        body: JSON.stringify(dataToSend)
       })
 
       const data = await response.json()
